@@ -1,0 +1,177 @@
+"""All dimensions and fit parameters for the storefront nook kit.
+
+Two kinds of numbers live here:
+  * Scale dimensions, written in real-world feet/inches through ft()/inch().
+  * Printer-driven values (wall thickness, clearances, min feature), written
+    directly in mm, because a 0.4 mm nozzle doesn't shrink at 1:87.1.
+
+Anything that ends up as a height in Z on the print bed goes through zq(), which
+snaps it to a whole number of layers.
+
+Override values on the command line with:  --set name=value  (see view.py).
+"""
+
+from dataclasses import dataclass, fields, replace
+
+SCALE = 87.1  # HO
+MM_PER_FT = 304.8 / SCALE  # ~3.499 mm
+
+
+def ft(x: float) -> float:
+    """Real-world feet -> model mm."""
+    return x * MM_PER_FT
+
+
+def inch(x: float) -> float:
+    """Real-world inches -> model mm."""
+    return x * MM_PER_FT / 12.0
+
+
+@dataclass(frozen=True)
+class Params:
+    # --- printer -----------------------------------------------------------
+    nozzle: float = 0.4
+    print_layer_height: float = 0.2
+    min_feature: float = 0.6         # thinnest XY feature we trust to print
+    bed_x: float = 220.0
+    bed_y: float = 220.0
+    bed_margin: float = 5.0
+
+    # --- walls (printer-driven) -------------------------------------------
+    wall_thickness: float = 3.0      # facade + returns; ~10" at scale (brick)
+    base_thickness: float = 5.0      # sidewalk slab / plinth
+    prop_thickness: float = 1.2      # cross-lap prop sheets (3 nozzle widths)
+
+    # --- fit (mm, per side) --------------------------------------------------
+    clearance: float = 0.15          # gap between tab and socket wall, per side
+    rib_height: float = 0.25         # crush rib protrusion into the socket
+    rib_base: float = 0.8            # crush rib width where it meets the wall
+    lead_in: float = 0.4             # 45° chamfer at socket mouths & tab tips
+    detent_height: float = 0.15      # barb bump (coupon only)
+
+    # --- tabs ------------------------------------------------------------------
+    # Tabs are extensions of a flat part's outline, so tab *thickness* is always
+    # the thickness of the part it's on (wall_thickness / prop_thickness).
+    facade_tab_widths: tuple = (5.0, 6.5)   # different widths = keyed (one way in)
+    return_tab_width: float = 3.5
+    return_front_tab_len: float = 1.4       # into blind pockets in the facade back
+    prop_tab_width: float = 2.0
+    prop_tab_len: float = 2.4
+
+    # --- wedge key (locks the facade tabs under the base) ---------------------
+    key_thickness: float = 2.6       # print Z of the key; window = this + 2*clearance
+    key_window_h: float = 1.6
+    key_taper_deg: float = 3.0
+    key_channel_depth: float = 2.8   # channel in the base underside the key slides in
+
+    # --- building (scale) -----------------------------------------------------
+    facade_width: float = ft(25)
+    storefront_height: float = ft(18)   # top of wall; parapet sits above
+    parapet_height: float = ft(2.5)
+    sidewalk_depth: float = ft(10)      # curb face to facade face
+    return_depth: float = ft(3)
+    return_inset: float = 1.0           # mm, returns sit in from facade edges
+    street_strip: float = ft(1.5)       # gutter strip in front of the curb
+    curb_height: float = inch(6)
+    joint_spacing: float = ft(5)
+    joint_width: float = 0.6
+    joint_depth: float = 0.4
+
+    door_width: float = ft(3.5)
+    door_height: float = ft(7.5)
+    door_recess: float = 0.6
+    window_margin: float = ft(1.5)      # facade edge to window
+    window_door_gap: float = ft(1.0)
+    window_sill: float = ft(2.0)        # bulkhead height
+    window_top: float = ft(9.0)
+    window_frame: float = 0.8           # frame band width (XY)
+    window_frame_raise: float = 0.4
+    transom_at: float = ft(7.5)         # height of the transom bar
+    transom_bar: float = 0.8
+    sign_bottom: float = ft(10.5)
+    sign_top: float = ft(13.0)
+    sign_inset: float = ft(1.0)
+    sign_raise: float = 0.6
+    cornice_bottom: float = ft(17.0)
+    cornice_step: float = ft(1.0)       # each of two cornice steps
+    cornice_raise: float = 0.4          # per step
+    coping_height: float = ft(0.5)
+
+    prop_x: float = ft(6.0)             # planter position on the sidewalk
+    prop_y: float = ft(3.5)             # (from the street edge)
+    prop_width: float = ft(2.5)
+    prop_height: float = ft(4.5)
+
+    # --- sprue -----------------------------------------------------------------
+    rail_width: float = 2.0
+    rail_height: float = 1.6
+    gate_width: float = 1.0
+    gate_height: float = 1.0
+    gate_neck: float = 0.6           # snap point where the gate meets the part
+    gate_gap: float = 3.0            # rail-to-part distance
+    part_spacing: float = 9.0        # between parts in a row (room for a label pad)
+    label_size: float = 3.0
+    label_raise: float = 0.4
+
+    # --- derived --------------------------------------------------------------
+    def zq(self, z: float) -> float:
+        """Snap a Z height to a whole number of layers (at least one)."""
+        lh = self.print_layer_height
+        return max(lh, round(z / lh) * lh)
+
+    @property
+    def wall_height(self) -> float:
+        return self.storefront_height + self.parapet_height
+
+    @property
+    def base_depth(self) -> float:
+        return self.sidewalk_depth + self.wall_thickness + self.return_depth
+
+    @property
+    def facade_tab_xs(self) -> tuple:
+        """X centers of the two facade tabs (asymmetric widths do the keying)."""
+        return (0.2 * self.facade_width, 0.8 * self.facade_width)
+
+    @property
+    def facade_tab_len(self) -> float:
+        # Through the base, stopping 0.3 mm above the table.
+        return self.base_thickness - 0.3
+
+    @property
+    def key_gap(self) -> float:
+        # Channel ceiling down to the bottom of the key window.
+        return self.key_window_h - 0.3
+
+    @property
+    def return_tab_ys(self) -> tuple:
+        """Heights (return-local) of the front tabs into the facade."""
+        return (0.3 * self.storefront_height, 0.7 * self.storefront_height)
+
+    @property
+    def return_xs(self) -> tuple:
+        """World X of the -X face of the (left, right) return."""
+        w, t, i = self.facade_width, self.wall_thickness, self.return_inset
+        return (i, w - i - t)
+
+    @property
+    def prop_tab_x(self) -> float:
+        return self.prop_width / 2
+
+
+def with_overrides(p: Params, pairs: list[str]) -> Params:
+    """Apply ['name=value', ...] overrides, e.g. from --set on the CLI.
+
+    Values are Python expressions evaluated with ft/inch available, so
+    --set facade_width=ft(30) works.
+    """
+    known = {f.name for f in fields(Params)}
+    changes = {}
+    for pair in pairs:
+        name, _, expr = pair.partition("=")
+        if name not in known:
+            raise SystemExit(f"unknown param {name!r}")
+        changes[name] = eval(expr, {"ft": ft, "inch": inch})
+    return replace(p, **changes)
+
+
+DEFAULT = Params()

@@ -1,0 +1,4 @@
+# Pure-Python/wheel deps. Native libs these wheels need come from flake.nix.
+build123d==0.13.0
+ocp_vscode==4.2.0
+ocp_viewer==1.2.0
