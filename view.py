@@ -2,9 +2,10 @@
 
     python view.py --mode built|print|both [--set name=value ...] [--out out]
 
-Headless it writes SVG/PNG projections (and 3MF/STL in print mode) to --out.
-If an OCP viewer is listening (VS Code's OCP CAD Viewer, or `just viewer`),
-the model is also shown there.
+Headless it writes SVG/PNG projections, shaded color previews, and (print
+mode) a multi-material 3MF plus STLs to --out. If an OCP viewer is listening
+(VS Code's OCP CAD Viewer, or `just viewer` with its page open), the model is
+also shown there, in color.
 
 Exit status is nonzero if the interference check (built) or the sprue
 verification (print) finds a problem.
@@ -34,6 +35,16 @@ def assemble(kit, p):
     return out
 
 
+def colored(kit, p, pose_of):
+    """[(name, solid, hex)] for every color region of every part."""
+    out = []
+    for spec, piece in kit:
+        loc = pose_of(spec)
+        for color, region in piece.regions().items():
+            out.append((f"{spec.name} ({color})", loc * region, p.hex(color)))
+    return out
+
+
 def run_built(kit, p, out: Path, export=True):
     placed = assemble(kit, p)
     errors, lines = checks.interference([(n, nom, ex) for n, nom, ex, _ in placed])
@@ -41,10 +52,15 @@ def run_built(kit, p, out: Path, export=True):
     for line in lines + errors:
         print("  " + line)
     model = Compound([body for *_, body in placed])
-    for view in ("iso", "front", "top") if export else ():
-        f = render.projection(model, out / f"built_{view}.svg", view)
-        print(f"  wrote {f} (+ .png)")
-    return model, [n for n, *_ in placed], [b for *_, b in placed], bool(errors)
+    regions = colored(kit, p, lambda spec: spec.built(p))
+    if export:
+        for view in ("iso", "front", "top"):
+            f = render.projection(model, out / f"built_{view}.svg", view)
+            print(f"  wrote {f} (+ .png)")
+        for view in ("iso", "front"):
+            f = render.color_preview([(s, h) for _, s, h in regions], out / f"built_color_{view}.png", view)
+            print(f"  wrote {f}")
+    return model, regions, bool(errors)
 
 
 def run_print(kit, p, out: Path, export=True):
@@ -53,14 +69,30 @@ def run_print(kit, p, out: Path, export=True):
     plate = s.solid()
     errors, lines = verify(s, p)
     errors += checks.connectivity([("sprue plate", plate)])
+
+    by_color = s.color_solids(p)
+    tools = sorted((p.tool(c), c) for c in by_color)
+    lines.append("colors: " + ", ".join(f"T{t} {c}" for t, c in tools))
+    if len(tools) > p.max_tools:
+        errors.append(f"TOO MANY COLORS: {len(tools)} > max_tools {p.max_tools}")
+    e, l = checks.color_partition(plate, by_color)
+    errors += e
+    lines += l
     for line in lines + errors:
         print("  " + line)
+
+    regions = [(c, t, p.hex(c), by_color[c]) for t, c in tools]
     if export:
-        render.export_mesh(plate, out / "kit")
-        print(f"  wrote {out / 'kit.3mf'}, {out / 'kit.stl'}")
+        render.export_color_3mf(regions, out / "kit.3mf")
+        render.export_mesh(plate, out / "kit", formats=("stl",))
+        stls = render.export_color_stls(regions, out / "kit")
+        print(f"  wrote {out / 'kit.3mf'} ({len(regions)} colors), {out / 'kit.stl'}, "
+              f"{len(stls)} per-color STLs")
         f = render.projection(plate, out / "plate_top.svg", "top", hidden=False)
         print(f"  wrote {f} (+ .png)")
-    return plate, bool(errors)
+        f = render.color_preview([(sol, h) for _, _, h, sol in regions], out / "plate_color.png", "top")
+        print(f"  wrote {f}")
+    return plate, [(f"sprue T{t} {c}", sol, h) for c, t, h, sol in regions], bool(errors)
 
 
 def main(argv=None):
@@ -77,6 +109,7 @@ def main(argv=None):
     p = with_overrides(DEFAULT, args.set)
     args.out.mkdir(parents=True, exist_ok=True)
     t0 = time.time()
+    export = not args.no_export
 
     print("feature sizes:")
     for line in checks.feature_report(p) or ["all declared features >= min_feature"]:
@@ -84,31 +117,30 @@ def main(argv=None):
 
     kit = registry.build(p)
     failed = False
-    shown, names = [], []
+    shown = []   # [(name, solid, hex)] for the viewer
 
     if args.mode in ("built", "both"):
         print("built:")
-        model, part_names, bodies, bad = run_built(kit, p, args.out, not args.no_export)
+        model, regions, bad = run_built(kit, p, args.out, export)
         failed |= bad
-        shown += bodies
-        names += part_names
+        shown += regions
 
     if args.mode in ("print", "both"):
         print("print:")
-        plate, bad = run_print(kit, p, args.out, not args.no_export)
+        plate, regions, bad = run_print(kit, p, args.out, export)
         failed |= bad
         if args.mode == "both":
             # Put the plate beside the assembled model, lying flat.
-            plate = Pos(model.bounding_box().max.X + 25, 0, 0) * plate
-        if args.mode == "both" and not args.no_export:
-            f = render.projection(Compound([model, plate]), args.out / "both_iso.svg", "iso",
-                                  hidden=False)
-            print(f"  wrote {f} (+ .png)")
-        shown.append(plate)
-        names.append("sprue")
+            shift = Pos(model.bounding_box().max.X + 25, 0, 0)
+            regions = [(n, shift * s, h) for n, s, h in regions]
+            if export:
+                f = render.projection(Compound([model, shift * plate]), args.out / "both_iso.svg",
+                                      "iso", hidden=False)
+                print(f"  wrote {f} (+ .png)")
+        shown += regions
 
     if not args.no_viewer and render.viewer_available():
-        render.show(shown, names)
+        render.show([s for _, s, _ in shown], [n for n, _, _ in shown], [h for _, _, h in shown])
         print(f"sent {len(shown)} objects to the OCP viewer on :{render.VIEWER_PORT}.\n"
               f"  Still seeing the logo? The viewer only draws into a browser tab that was\n"
               f"  already open: open {render.VIEWER_URL} first, then re-run (`just show`).")

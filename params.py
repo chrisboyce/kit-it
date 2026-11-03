@@ -113,6 +113,38 @@ class Params:
     label_size: float = 3.0
     label_raise: float = 0.4
 
+    # --- color ------------------------------------------------------------------
+    # One filament per toolhead. Order = tool number (T1..T4). Hex is only for
+    # previews; the printer uses whatever filament is loaded in that tool.
+    max_tools: int = 4
+    palette: tuple = (
+        ("brick", "#8e3b2e"),
+        ("trim", "#e8e0cc"),
+        ("concrete", "#9c9a94"),
+        ("accent", "#2e5b3c"),
+    )
+    # Which filament each thing gets (names from the palette).
+    color_wall: str = "brick"        # facade + returns
+    color_trim: str = "trim"         # window frames, transoms, cornice, coping
+    color_sign: str = "accent"       # sign band
+    color_door: str = "accent"
+    color_base: str = "concrete"
+    color_key: str = "concrete"
+    color_planter: str = "concrete"
+    color_shrub: str = "accent"
+    color_sprue: str = "concrete"    # rails, gates, label pads
+    color_label: str = "trim"        # embossed part numbers
+    # A colored face feature also colors this much material *under* it, so a
+    # light color over a dark one isn't just 2 translucent layers.
+    color_depth: float = 0.6
+
+    def tool(self, color: str) -> int:
+        """Toolhead number (1-based) for a palette color."""
+        return [n for n, _ in self.palette].index(color) + 1
+
+    def hex(self, color: str) -> str:
+        return dict(self.palette)[color]
+
     # --- derived --------------------------------------------------------------
     def zq(self, z: float) -> float:
         """Snap a Z height to a whole number of layers (at least one)."""
@@ -170,8 +202,24 @@ def with_overrides(p: Params, pairs: list[str]) -> Params:
         name, _, expr = pair.partition("=")
         if name not in known:
             raise SystemExit(f"unknown param {name!r}")
-        changes[name] = eval(expr, {"ft": ft, "inch": inch})
-    return replace(p, **changes)
+        try:
+            changes[name] = eval(expr, {"ft": ft, "inch": inch})
+        except NameError:
+            changes[name] = expr   # bare word, e.g. --set color_door=trim
+    p = replace(p, **changes)
+    check_colors(p)
+    return p
+
+
+def check_colors(p: Params):
+    """Every color_* must name a palette entry, and the palette must fit the printer."""
+    names = [n for n, _ in p.palette]
+    if len(names) > p.max_tools:
+        raise SystemExit(f"palette has {len(names)} colors but max_tools is {p.max_tools}")
+    for f in fields(Params):
+        if f.name.startswith("color_") and f.name != "color_depth":
+            if getattr(p, f.name) not in names:
+                raise SystemExit(f"{f.name}={getattr(p, f.name)!r} is not in palette {names}")
 
 
 DEFAULT = Params()

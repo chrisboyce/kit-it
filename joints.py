@@ -37,6 +37,8 @@ class Piece:
     nominal: object
     extras: list = field(default_factory=list)
     gates: list = field(default_factory=list)
+    color: str = "default"
+    paints: list = field(default_factory=list)   # [(color, volume)]; later ones win
 
     @property
     def body(self):
@@ -44,6 +46,24 @@ class Piece:
         for e in self.extras:
             out = out + e
         return out
+
+    def regions(self):
+        """{color: solid}: the body split by its paint volumes.
+
+        The regions partition the body exactly (they only share faces), so a
+        slicer sees clean, non-overlapping parts. Computed once per piece.
+        """
+        if getattr(self, "_regions", None) is None:
+            remaining, out = self.body, {}
+            for color, vol in reversed(self.paints):
+                part = remaining & vol
+                if part is not None and part.solids() and part.volume > 1e-6:
+                    out[color] = out[color] + part if color in out else part
+                    remaining = remaining - vol
+            if remaining.solids() and remaining.volume > 1e-6:
+                out[self.color] = out[self.color] + remaining if self.color in out else remaining
+            self._regions = out
+        return self._regions
 
 
 def box(x0, x1, y0, y1, z0, z1):

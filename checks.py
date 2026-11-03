@@ -59,6 +59,26 @@ def connectivity(named_solids):
     return errors
 
 
+def color_partition(whole, by_color, tol=1e-3):
+    """Color regions must tile the plate exactly: no two colors claim the same
+    space (slicers resolve overlapping parts unpredictably), and nothing is
+    left uncolored."""
+    errors, lines = [], []
+    names = list(by_color)
+    for i, a in enumerate(names):
+        for b in names[i + 1:]:
+            v = overlap(by_color[a], by_color[b])
+            if v > tol:
+                errors.append(f"COLOR OVERLAP {a} x {b}: {v:.4f} mm^3")
+    total = sum(s.volume for s in by_color.values())
+    gap = whole.volume - total
+    lines.append(f"color regions: {total:.1f} mm^3 of {whole.volume:.1f} mm^3 "
+                 f"({len(names)} colors, {len(errors)} overlaps)")
+    if abs(gap) > 0.01 * whole.volume / 100 + tol:   # 0.01 % slack for tessellation-free rounding
+        errors.append(f"COLOR GAP: regions sum to {total:.3f} mm^3, plate is {whole.volume:.3f}")
+    return errors, lines
+
+
 def feature_report(p: Params):
     """Warn about features thinner than min_feature (XY) or off the layer grid (Z).
 
@@ -83,6 +103,7 @@ def feature_report(p: Params):
         "joint_depth": p.joint_depth, "curb_height": p.curb_height,
         "key_channel_depth": p.key_channel_depth, "label_raise": p.label_raise,
         "rail_height": p.rail_height, "gate_height": p.gate_height,
+        "color_depth": p.color_depth,
     }
     # Intentionally below the nozzle width: these are the fit features the
     # coupon exists to validate.

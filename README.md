@@ -5,7 +5,7 @@ storefronts as **snap-together kits printed flat on a sprue**, in Python with
 [build123d](https://github.com/gumyr/build123d). One generic storefront, plus
 a snap-fit test coupon.
 
-![built](out/built_iso.png)
+![built](out/built_color_iso.png)
 
 ## Run it
 
@@ -17,7 +17,7 @@ just                 # = just both coupon  -> everything into ./out
 | command | output |
 |---|---|
 | `just built` | interference check + `out/built_{iso,front,top}.{svg,png}` |
-| `just print` | sprue checks + `out/kit.3mf`, `out/kit.stl`, `out/plate_top.{svg,png}` |
+| `just print` | sprue + color checks, `out/kit.3mf` (4-color), `out/kit.stl`, `out/kit_T*_*.stl`, `out/plate_{top,color}.png` |
 | `just both`  | both of the above + `out/both_iso.png` (model beside its plate) |
 | `just coupon`| `out/coupon.3mf`, `out/coupon.stl`, `out/coupon_{top,iso}.png` |
 | `just viewer`| browser OCP viewer on :3939 |
@@ -80,6 +80,59 @@ Fit knobs: `clearance` (per side), `rib_height`, `rib_base`, `lead_in`,
 the thickness of the part the tab is on (`wall_thickness`/`prop_thickness`),
 because tabs are part of a flat part's outline.
 
+## Color (4 toolheads)
+
+The kit prints in up to `max_tools` = 4 filaments (Snapmaker U1). The palette
+and every assignment are in `params.py`:
+
+| tool | name | default use |
+|---|---|---|
+| T1 | brick | facade, returns |
+| T2 | trim | window frames + transoms, cornice, coping, sprue labels |
+| T3 | concrete | base, keys, planter boxes, sprue rails/gates |
+| T4 | accent | sign band, door, shrubs |
+
+```sh
+just both --set color_door=trim          # reassign one thing
+```
+Edit `palette` to rename or recolor a filament. The hex values only drive the
+previews; the printer uses whatever is loaded in that tool.
+
+**How it's modeled:** geometry is unchanged. Each part has a base color plus
+*paint volumes* (`Piece.paints`): the window frames are trim, and so on. A
+part's color regions are its body intersected with the paints, with later paints
+winning, so they tile the part exactly and the joints and checks don't care.
+Raised face features also color `color_depth` (0.6 mm) of the material under
+them, so cream trim over red brick isn't just two translucent layers. On the
+planter, the color split is in the outline, so every layer has both colors.
+That's no problem on a toolchanger.
+
+**Checks:** the color regions must tile the plate exactly (no overlap, no gap,
+which `color_partition` checks), and the plate may use at most `max_tools`
+colors.
+
+**Slicing on the U1:** open `out/kit.3mf`. It loads as **one object with four
+parts** named `T1 brick`, `T2 trim`, `T3 concrete` and `T4 accent`. In the
+object list, set each part's filament to its tool number (four clicks), then
+save as a project if you'll reprint it. Prefer the 3MF over the per-color STLs:
+when OrcaSlicer combines separate STLs into one object it can re-center each
+file, and the colors no longer line up.
+
+Why it isn't automatic yet (tested headless against OrcaSlicer 2.4.2, the base
+of Snapmaker Orca, with its Snapmaker U1 profile):
+* Orca honors per-part extruder settings only inside its own project 3MF.
+  For any other 3MF it logs "3mf from other vendor" and ignores them. Its
+  project format also requires an embedded full printer/process config
+  (`project_settings.config`); without one the CLI segfaults.
+* The PrusaSlicer-style per-volume extruder config loads but is ignored too.
+* 3MF color groups are read, but the CLI doesn't map them to filaments. The
+  GUI may offer a color-mapping dialog; that's untested.
+* The Orca CLI also segfaults with 4 filaments on the U1 profile, even for
+  plain STLs, so a full 4-color U1 slice couldn't be run headless.
+* Likely fix: save one real project from Snapmaker Orca (U1 + your 4
+  filaments) and use its `project_settings.config` as a template, so
+  `kit.3mf` opens as a native project with tools pre-assigned.
+
 ## The joints
 
 Rule: **every precision feature is in the XY outline of the part it's on**
@@ -126,6 +179,12 @@ together.
   "gripped" their mates in check B. The coupon's fused plate came out as 15
   solids, which gave it away. Fixed, and `checks.connectivity()` now fails the
   build if any part or plate isn't exactly one solid.
+
+* **Color:** 4 colors, and the regions sum to exactly the plate's volume
+  (42 990.4 mm³) with 0 overlaps. The previews (`built_color_iso.png`,
+  `plate_color.png`) show the expected assignment. Snapmaker Orca's U1
+  profile loads `kit.3mf` as one object with 4 parts and slices it (single
+  filament: 36.7 g, about 2 h 25 m).
 
 **Not verified: nothing has been printed yet.** The next real step is to print
 `coupon.3mf` in PLA at 0.2 mm and see which slots fit.
@@ -181,9 +240,15 @@ second plate.
 * Run times: the kit takes about 25 s and the coupon about 80 s, mostly
   booleans, the sprue checks and hidden-line projection.
 
+**Color previews** use a small numpy z-buffer rasterizer in `render.py`
+(`color_preview`). matplotlib's 3D plotting sorts whole triangles by depth and
+drew the long facade triangles in the wrong order.
+
 ## Not done yet
 
 * Awning with posts (deferred; the cross-lap prop proves the construction for
   the post).
 * Real Colfax facades.
+* Pre-assigned toolheads in the 3MF (needs a Snapmaker Orca project as a template).
+* 8-color kits split across two plates.
 * Layered/laminated facades.

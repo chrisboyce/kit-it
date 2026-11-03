@@ -29,16 +29,34 @@ class Sprue:
     names: list
     poses: list              # print pose (Location) per item
     parts: list              # part bodies in print pose
-    rails: object            # rails + label pads + label text
+    rails: object            # rails + label pads
+    labels: object           # embossed label text
     gates: list = field(default_factory=list)   # [(item index, solid)]
     size: tuple = (0, 0)
+    pieces: list = field(default_factory=list)
 
     def solid(self):
         """Everything fused into one printable object.
 
         One multi-argument fuse: much faster than adding pieces one at a time.
         """
-        return self.rails.fuse(*[g for _, g in self.gates], *self.parts)
+        return self.rails.fuse(self.labels, *[g for _, g in self.gates], *self.parts)
+
+    def color_solids(self, p: Params):
+        """{color: solid} for a multi-material print. Regions only share faces:
+        the sprue is cut back wherever a part or a label occupies the space."""
+        by_color = {}
+        for pose, piece in zip(self.poses, self.pieces):
+            for color, region in piece.regions().items():
+                by_color.setdefault(color, []).append(pose * region)
+        sprue = self.rails.fuse(*[g for _, g in self.gates])
+        sprue = sprue.cut(self.labels, *self.parts)
+        by_color.setdefault(p.color_sprue, []).append(sprue)
+        by_color.setdefault(p.color_label, []).append(self.labels)
+        out = {}
+        for color, solids in by_color.items():
+            out[color] = solids[0].fuse(*solids[1:]) if len(solids) > 1 else solids[0]
+        return out
 
 
 def _pad_width(text, p):
@@ -94,9 +112,11 @@ def layout(items, p: Params) -> Sprue:
     frame = box(0, rw, 0, H, 0, rh) + box(W - rw, W, 0, H, 0, rh)
     for ry in rails_y:
         frame += box(0, W, ry, ry + rw, 0, rh)
+    texts = []
     for x0, x1, y0, y1, text in pads:
         frame += box(x0, x1, y0, y1, 0, rh)
-        frame += label(text, (x0 + x1) / 2, (y0 + y1) / 2 + 0.3, rh, p)
+        texts.append(label(text, (x0 + x1) / 2, (y0 + y1) / 2 + 0.3, rh, p))
+    labels = texts[0].fuse(*texts[1:]) if len(texts) > 1 else texts[0]
 
     # --- gates ------------------------------------------------------------------
     gates = []
@@ -116,7 +136,8 @@ def layout(items, p: Params) -> Sprue:
             gates.append((i, g))
 
     placed = [pose * it.piece.body for pose, it in zip(poses, items)]
-    return Sprue([it.name for it in items], poses, placed, frame, gates, (W, H))
+    return Sprue([it.name for it in items], poses, placed, frame, labels, gates, (W, H),
+                 [it.piece for it in items])
 
 
 def verify(s: Sprue, p: Params, threshold=1e-3):
@@ -135,7 +156,7 @@ def verify(s: Sprue, p: Params, threshold=1e-3):
             v = overlap(s.parts[i], s.parts[j])
             if v > threshold:
                 errors.append(f"OVERLAP {s.names[i]} x {s.names[j]}: {v:.3f} mm^3")
-        v = overlap(s.parts[i], s.rails)
+        v = overlap(s.parts[i], s.rails) + overlap(s.parts[i], s.labels)
         if v > threshold:
             errors.append(f"OVERLAP {s.names[i]} x rails/labels: {v:.3f} mm^3")
     for gi, g in s.gates:

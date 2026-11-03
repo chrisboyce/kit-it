@@ -97,7 +97,7 @@ def base(p: Params) -> Piece:
     ribs += r
 
     gates = [(0.4 * W, D, "+y"), (0.6 * W, D, "+y")]   # back edge: hidden
-    return Piece(body, ribs, gates)
+    return Piece(body, ribs, gates, color=p.color_base)
 
 
 # ---------------------------------------------------------------------------
@@ -116,9 +116,17 @@ def facade(p: Params) -> Piece:
         body += tab(x, 0, w, p.facade_tab_len, tw, p.lead_in)
         body -= key_window(x, win_top, p)
 
+    # Color: each face feature also claims color_depth of material beneath it.
+    paints = []
+    z_paint = tw - p.zq(p.color_depth)
+    top = tw + 10
+
     # Door: recessed into the front face, centered.
     dx0, dx1 = W / 2 - p.door_width / 2, W / 2 + p.door_width / 2
-    body -= box(dx0, dx1, -EPS, p.door_height, tw - p.zq(p.door_recess), tw + EPS)
+    door_floor = tw - p.zq(p.door_recess)
+    body -= box(dx0, dx1, -EPS, p.door_height, door_floor, tw + EPS)
+    paints.append((p.color_door, box(dx0, dx1, -EPS, p.door_height,
+                                     door_floor - p.zq(p.color_depth), door_floor + EPS)))
 
     # Display windows: open, with a raised frame and a full-depth transom bar.
     f, fr = p.window_frame, p.zq(p.window_frame_raise)
@@ -129,16 +137,24 @@ def facade(p: Params) -> Piece:
         body = body + frame - box(wx0, wx1, y0, y1, -EPS, tw + fr + EPS)
         ty = p.transom_at
         body += box(wx0 - EPS, wx1 + EPS, ty - p.transom_bar / 2, ty + p.transom_bar / 2, 0, tw + fr)
+        paints.append((p.color_trim, box(wx0 - f, wx1 + f, y0 - f, y1 + f, z_paint, top)))
+        # The transom bar is full depth, so it's trim all the way through.
+        paints.append((p.color_trim, box(wx0, wx1, ty - p.transom_bar / 2,
+                                         ty + p.transom_bar / 2, -EPS, top)))
 
     # Sign band.
     body += box(p.sign_inset, W - p.sign_inset, p.sign_bottom, p.sign_top, tw - EPS,
                 tw + p.zq(p.sign_raise))
+    paints.append((p.color_sign, box(p.sign_inset, W - p.sign_inset, p.sign_bottom,
+                                     p.sign_top, z_paint, top)))
 
     # Two-step cornice at the roofline, and a coping band on the parapet.
     cr, cs, cb = p.zq(p.cornice_raise), p.cornice_step, p.cornice_bottom
     body += box(0, W, cb, cb + 2 * cs, tw - EPS, tw + cr)
     body += box(0, W, cb + cs, cb + 2 * cs, tw - EPS, tw + 2 * cr)
     body += box(0, W, H - p.coping_height, H, tw - EPS, tw + cr)
+    paints.append((p.color_trim, box(-EPS, W + EPS, cb, cb + 2 * cs, z_paint, top)))
+    paints.append((p.color_trim, box(-EPS, W + EPS, H - p.coping_height, H + EPS, z_paint, top)))
 
     # Blind pockets in the back face for the returns' front tabs. The pocket
     # mouth is on the bed (z=0); its roof prints as a short bridge.
@@ -153,7 +169,7 @@ def facade(p: Params) -> Piece:
 
     # Gates on the bottom edge (sits on the base, never seen), clear of tabs and door.
     gates = [(0.35 * W, 0, "-y"), (0.65 * W, 0, "-y")]
-    return Piece(body, ribs, gates)
+    return Piece(body, ribs, gates, color=p.color_wall, paints=paints)
 
 
 # ---------------------------------------------------------------------------
@@ -168,7 +184,7 @@ def side_return(p: Params) -> Piece:
         body += tab(0, ty, p.return_tab_width, p.return_front_tab_len, tw, p.lead_in, "-x")
     body += tab(Dr / 2, 0, p.return_tab_width, p.base_thickness - 0.4, tw, p.lead_in)
     gates = [(0.15 * Dr, 0, "-y"), (0.85 * Dr, 0, "-y")]
-    return Piece(body, [], gates)
+    return Piece(body, [], gates, color=p.color_wall)
 
 
 # ---------------------------------------------------------------------------
@@ -176,7 +192,7 @@ def key(p: Params) -> Piece:
     """Wedge key. Slides in from the back, under the base, through a facade tab."""
     kg = key_geometry(p)
     solid, _ = wedge_key(p, kg["length"], kg["h_small"])
-    return Piece(solid, [], [(0.5 * kg["length"], 0, "-y")])
+    return Piece(solid, [], [(0.5 * kg["length"], 0, "-y")], color=p.color_key)
 
 
 # ---------------------------------------------------------------------------
@@ -193,13 +209,20 @@ def _planter_outline(p: Params):
     return s
 
 
+def _planter_paints(p: Params):
+    """Shrub above the planter box. The split is in the outline (XY), so every
+    layer of the prop has both colors: easy on a toolchanger."""
+    w, H = p.prop_width, p.prop_height
+    return [(p.color_shrub, box(-1, w + 1, H / 3, H + 1, -1, 10))]
+
+
 def prop_a(p: Params) -> Piece:
     """Cross-lap prop, piece A: slot from the top, tab into the sidewalk."""
     w, H, t, c = p.prop_width, p.prop_height, p.prop_thickness, p.clearance
     body = extrude(_planter_outline(p), t, dir=UP)
     body -= box(w / 2 - t / 2 - c, w / 2 + t / 2 + c, H / 2, H + EPS, -EPS, t + EPS)
     body += tab(p.prop_tab_x, 0, p.prop_tab_width, p.prop_tab_len, t, p.lead_in)
-    return Piece(body, [], [(0.12 * w, 0, "-y")])
+    return Piece(body, [], [(0.12 * w, 0, "-y")], color=p.color_planter, paints=_planter_paints(p))
 
 
 def prop_b(p: Params) -> Piece:
@@ -207,4 +230,5 @@ def prop_b(p: Params) -> Piece:
     w, H, t, c = p.prop_width, p.prop_height, p.prop_thickness, p.clearance
     body = extrude(_planter_outline(p), t, dir=UP)
     body -= box(w / 2 - t / 2 - c, w / 2 + t / 2 + c, -EPS, H / 2, -EPS, t + EPS)
-    return Piece(body, [], [(0.15 * w, 0, "-y"), (0.85 * w, 0, "-y")])
+    return Piece(body, [], [(0.15 * w, 0, "-y"), (0.85 * w, 0, "-y")],
+                 color=p.color_planter, paints=_planter_paints(p))
