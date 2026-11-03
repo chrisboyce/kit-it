@@ -69,6 +69,9 @@ def run_print(kit, p, out: Path, export=True):
     plate = s.solid()
     errors, lines = verify(s, p)
     errors += checks.connectivity([("sprue plate", plate)])
+    e, l = checks.overhangs([(spec.name, piece.body) for spec, piece in kit], p)
+    errors += e
+    lines += l
 
     by_color = s.color_solids(p)
     tools = sorted((p.tool(c), c) for c in by_color)

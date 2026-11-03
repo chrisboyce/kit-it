@@ -49,6 +49,37 @@ def interference(placed, threshold=THRESHOLD):
     return errors, lines
 
 
+def overhangs(named_pieces, p, max_angle=45.0):
+    """Unsupported downward faces, with each part in its print frame (bed at Z=0).
+
+    A face that points down more steeply than max_angle from vertical, and isn't
+    on the bed, prints over air: a bridge. Faces narrower than two nozzle widths
+    are ignored (a slicer just droops one line there). Anything that has to
+    bridge more than max_bridge is an error.
+    """
+    import math
+    limit = -math.sin(math.radians(max_angle)) - 0.01   # 45° chamfers pass
+    errors, worst = [], 0.0
+    for name, body in named_pieces:
+        for f in body.faces():
+            bb = f.bounding_box()
+            if bb.min.Z < 0.05 or f.normal_at(f.center()).Z > limit:
+                continue
+            # Width across the face: the bbox for rectangles, 4*area/perimeter
+            # for rings and strips (a thin rim's bbox is as big as the hole).
+            perim = sum(e.length for e in f.edges())
+            span = min(bb.size.X, bb.size.Y, 4 * f.area / perim if perim else 0)
+            if span < 2 * p.nozzle:
+                continue
+            worst = max(worst, span)
+            if span > p.max_bridge + 1e-6:
+                errors.append(f"BRIDGE {name}: {bb.size.X:.1f} x {bb.size.Y:.1f} mm flat roof "
+                              f"at z={bb.min.Z:.1f} (max_bridge {p.max_bridge})")
+    lines = [f"overhangs: longest bridge {worst:.1f} mm (max_bridge {p.max_bridge}), "
+             f"{len(errors)} too long"]
+    return errors, lines
+
+
 def connectivity(named_solids):
     """Each printable piece must be one solid; a floating rib or barb is a bug."""
     errors = []

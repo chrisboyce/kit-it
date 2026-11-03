@@ -165,10 +165,14 @@ def main(argv=None):
     p = with_overrides(DEFAULT, args.set)
     args.out.mkdir(parents=True, exist_ok=True)
 
-    s = layout(build(p), p)
+    items = build(p)
+    s = layout(items, p)
     plate = s.solid()
     errors, lines = verify(s, p)
     errors += checks.connectivity([("coupon plate", plate)])
+    e, l = checks.overhangs([(it.name, it.piece.body) for it in items], p)
+    errors += e
+    lines += l
     for line in lines + errors:
         print("  " + line)
     render.export_mesh(plate, args.out / "coupon")

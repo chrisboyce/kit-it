@@ -87,12 +87,26 @@ def tab(x, y, width, length, thickness, lead, direction="-y"):
     return Pos(x, y, 0) * Rot(0, 0, angle) * solid
 
 
+def bridge_roof(sx, sy, p):
+    """Height of the 45° chamfer a blind pocket's roof needs so the flat part
+    left in the middle spans at most max_bridge (whole layers, 0 if not needed)."""
+    need = (min(sx, sy) - p.max_bridge) / 2
+    if need <= 0:
+        return 0.0
+    lh = p.print_layer_height
+    return math.ceil(need / lh - 1e-9) * lh
+
+
 def socket(cx, cy, sx, sy, z0, z1, p, mouth="top", ribs="y", rib_height=None):
     """A rectangular socket (cutter) with a 45° lead-in at its mouth, plus crush ribs.
 
     sx, sy are the *socket* sizes (tab size + 2*clearance). The socket spans
     z0..z1, with its mouth at z1 ('top') or z0 ('bottom'). Ribs sit on the two
     walls facing the `ribs` axis and press on the tab's faces.
+
+    A blind socket opening onto the bed (mouth='bottom') prints its closed end
+    as a bridge, so that end gets a 45° chamfered roof above z1 (bridge_roof):
+    the pocket is still full size up to z1, it just doesn't end in a flat span.
 
     Returns (cutter, [rib solids]). Cut the cutter from the host, then add the ribs.
     """
@@ -103,6 +117,12 @@ def socket(cx, cy, sx, sy, z0, z1, p, mouth="top", ribs="y", rib_height=None):
     outer = Plane.XY.offset(zm - inward * EPS) * Rectangle(sx + 2 * (li + EPS), sy + 2 * (li + EPS))
     inner = Plane.XY.offset(zm + inward * li) * Rectangle(sx, sy)
     cutter = cutter + Pos(cx, cy, 0) * loft([outer, inner])
+    if mouth == "bottom":
+        h = bridge_roof(sx, sy, p)
+        if h > 0:
+            base_r = Plane.XY.offset(z1 + EPS) * Rectangle(sx, sy)   # = the cutter's top
+            top_r = Plane.XY.offset(z1 + EPS + h) * Rectangle(sx - 2 * h, sy - 2 * h)
+            cutter = cutter + Pos(cx, cy, 0) * loft([base_r, top_r])
 
     ribs_out = []
     if rh > 0:

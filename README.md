@@ -56,7 +56,7 @@ identical everywhere. Python deps are pinned in `requirements.txt`.
 | `parts.py` | one function per part → `Piece` in its print frame (bed face at Z=0) |
 | `registry.py` | the part list: number, name, part function, **built pose** |
 | `sprue.py` | **print pose**: shelf layout, rails, gates with snap notches, label pads, checks |
-| `checks.py` | pairwise interference, part connectivity, feature-size warnings |
+| `checks.py` | pairwise interference, part connectivity, overhang/bridge spans, feature-size warnings |
 | `view.py` | `--mode built\|print\|both` entry point |
 | `coupon.py` | the snap-fit test coupon |
 
@@ -138,6 +138,15 @@ of Snapmaker Orca, with its Snapmaker U1 profile):
 Rule: **every precision feature is in the XY outline of the part it's on**
 (accurate to about a nozzle width), never a Z feature (quantized to 0.2 mm
 layers).
+
+Second rule: **nothing needs supports.** Every face that points down over air
+is either a 45° slope or a bridge of at most `max_bridge` (2.5 mm).
+`checks.overhangs()` scans each part in its print frame and fails the build on
+a longer flat span. Blind pockets that open onto the bed (the facade's back
+pockets) get a 45° chamfered roof above their full-depth section, which turns
+a 3.3 × 4.3 mm flat roof into a 2.5 mm bridge (leaving 1.0 mm of facade in
+front). The first print's sag came from the wedge key channels under the base,
+which bridged about 8 mm; those are gone.
 
 * **Keyed tab + socket with crush ribs** (all wall-to-base and return-to-facade
   joints). Small triangular ribs on the socket walls run along the insertion

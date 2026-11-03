@@ -36,6 +36,9 @@ class Params:
     bed_x: float = 220.0
     bed_y: float = 220.0
     bed_margin: float = 5.0
+    # Longest flat span we'll print with nothing under it. Blind pockets that
+    # open onto the bed get a 45° chamfered roof that shrinks their bridge to this.
+    max_bridge: float = 2.5
 
     # --- walls (printer-driven) -------------------------------------------
     wall_thickness: float = 3.0      # facade + returns; ~10" at scale (brick)
