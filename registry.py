@@ -63,11 +63,11 @@ REGISTRY = [
 ]
 
 
-def build(p: Params):
+def build(p: Params, specs=None):
     """[(spec, piece)] for the whole kit, building each distinct part function once."""
     cache = {}
     out = []
-    for spec in REGISTRY:
+    for spec in REGISTRY if specs is None else specs:
         if spec.make not in cache:
             cache[spec.make] = spec.make(p)
         out.append((spec, cache[spec.make]))

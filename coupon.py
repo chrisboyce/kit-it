@@ -13,6 +13,12 @@ joint functions as the kit. Rows:
              ways (over-constrained). M2: the left socket locates, the other two
              float along the row (float_clearance), as the kit now does.
   KEY        keyed pair: the two facade tab widths. It should only go in one way.
+  HS         the Creative Corner's panel joint: barbed split tab with its slit
+             hidden from the show face, in a base-thickness strip, at socket
+             clearances 0.05 / 0.10 / 0.15. Check it holds and the skin stays closed.
+  XL         the Creative Corner's feature joint: 1.2 mm cross-lap pairs at slot
+             clearances 0.05 / 0.10 / 0.15 / 0.20. Pick the one that's a loose
+             but stable fit, and set prop_clearance to it.
 
     python coupon.py [--set name=value ...] [--out out]
 """
@@ -23,7 +29,7 @@ from pathlib import Path
 
 import checks
 import render
-from joints import EPS, Piece, barb_tab, box, socket, tab
+from joints import EPS, Piece, barb_tab, box, socket, split_tab, tab
 from params import DEFAULT, with_overrides
 from parts import label
 from sprue import Item, layout, verify
@@ -33,6 +39,7 @@ DETENTS = (0.10, 0.15)
 RIBS = (0.15, 0.20, 0.25)
 PLAIN = (0.05, 0.10, 0.15)
 PEGS = (8.0, 20.0, 32.0)   # M-row tab centers
+CROSS = (0.05, 0.10, 0.15, 0.20)
 PITCH = 10.0
 STRIP_D = 13.0  # strip depth (Y)
 
@@ -149,11 +156,41 @@ def keyed_row(p):
             Item("keyed_tab", Piece(panel, [], pg))]
 
 
+def hidden_split_row(p):
+    tw, plate_t = p.wall_thickness, p.base_thickness
+    body, gates = strip(p, len(PLAIN), plate_t, "HS")
+    w = p.split_width
+    for i, c in enumerate(PLAIN):
+        cut, _ = socket(slot_x(i), STRIP_D / 2, w + 2 * c, tw + 2 * c, 0, plate_t, p, rib_height=0)
+        body -= cut
+        body += label(f"{round(c * 100):02d}", slot_x(i), STRIP_D / 2 + 4.5, plate_t, p, size=2.2)
+    items = [Item("hs_strip", Piece(body, [], gates))]
+    for k in range(len(PLAIN)):
+        panel = box(0, 10, 0, 7, 0, tw)
+        t, slit = split_tab(5, 0, p, plate_t - 0.3, 1.2, tw)
+        items.append(Item(f"hs_tab_{k}", Piece(panel + t - slit, [], [(5, 7, "+y")])))
+    return items
+
+
+def cross_lap_row(p):
+    """Pairs of sheets; the slot in piece A is cut at the marked clearance."""
+    t, w, h = p.prop_thickness, 12.0, 9.0
+    items = []
+    for c in CROSS:
+        a = box(0, w, 0, h, 0, t) - box(w / 2 - t / 2 - c, w / 2 + t / 2 + c, h / 2, h + EPS, -EPS, t + EPS)
+        a += label(f"{round(c * 100):02d}", w * 0.22, h * 0.5, t, p, size=2.2)
+        b = box(0, w, 0, h, 0, t) - box(w / 2 - t / 2 - c, w / 2 + t / 2 + c, -EPS, h / 2, -EPS, t + EPS)
+        items.append(Item(f"xl_a_{c}", Piece(a, [], [(w * 0.5, 0, "-y")])))
+        items.append(Item(f"xl_b_{c}", Piece(b, [], [(w * 0.2, 0, "-y")])))
+    return items
+
+
 def build(p):
     items = []
     for h in DETENTS:
         items += detent_row(p, h)
     items += rib_row(p) + solid_split_row(p) + multi_peg_row(p) + keyed_row(p)
+    items += hidden_split_row(p) + cross_lap_row(p)
     return items
 
 

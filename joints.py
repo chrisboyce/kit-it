@@ -11,7 +11,8 @@ Design rule: every precision feature lives in the XY outline of the part it's on
     suits stiff, brittle PLA better than a flexing snap.
   * Only one socket per part locates it along a wall; the rest float that way
     (float_clearance) so several pegs never fight each other.
-  * Detent barbs (coupon only) are bumps on a split-prong tab's outline.
+  * Detent barbs are bumps on a split-prong tab's outline. split_tab() is the
+    same tab with its slit hidden from the show face, for large panels.
 """
 
 import math
@@ -161,6 +162,29 @@ def barb_tab(x, y, p, width, length, barb_at, barb_h, thickness, slit=1.0):
     # flex, so it's returned separately: parent + tab - slit.
     slit_cut = box(-slit / 2, slit / 2, -L - EPS, 2.0, -EPS, thickness + EPS)
     return Pos(x, y, 0) * solid, Pos(x, y, 0) * slit_cut
+
+
+def split_tab(x, y, p, length, barb_at, thickness, direction="-y", into_parent=2.0):
+    """Barbed split tab whose slit doesn't show on the part's front face.
+
+    The geometry of the coupon's D10 tab (barb_tab), but inside the parent the
+    slit stops split_skin short of the top (z = thickness), so a wall's show face
+    stays closed. Between the prongs, in the tab itself, it's cut all the way.
+
+    With split_barb == split_clearance the barbs are line-to-line with the socket
+    in the model, which is the fit the coupon showed to hold firmly: they stay in
+    the part's nominal body and the interference check flags a tighter socket.
+
+    Returns (tab, slit): parent + tab - slit.
+    """
+    t, _ = barb_tab(0, 0, p, p.split_width, length, barb_at, p.split_barb, thickness,
+                    slit=p.split_slit)
+    s = p.split_slit / 2
+    slit = (box(-s, s, -length - EPS, EPS, -EPS, thickness + EPS)
+            + box(-s, s, 0, into_parent, -EPS, thickness - p.split_skin))
+    angle = {"-y": 0, "+x": 90, "+y": 180, "-x": -90}[direction]
+    place = Pos(x, y, 0) * Rot(0, 0, angle)
+    return place * t, place * slit
 
 
 def bboxes_touch(a, b, pad=0.01) -> bool:

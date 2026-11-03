@@ -18,6 +18,10 @@ print *ARGS:
 both *ARGS:
     {{py}} view.py --mode both {{ARGS}}
 
+# the Creative Corner building, all modes -> out/corner/
+corner *ARGS:
+    {{py}} view.py --kit corner --mode both {{ARGS}}
+
 # snap-fit test coupon -> out/coupon.3mf, coupon.stl
 coupon *ARGS:
     {{py}} coupon.py {{ARGS}}

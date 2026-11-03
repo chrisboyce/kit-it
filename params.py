@@ -52,6 +52,13 @@ class Params:
     # much room per side so peg spacing errors don't have to be forced in.
     float_clearance: float = 0.40
     prop_clearance: float = 0.10     # cross-lap slots + prop pocket: plain friction, no ribs
+    # Split tabs (joints.split_tab). 4 mm wide, 1 mm slit, 0.10 barb in a 0.10
+    # socket is the coupon's D10 tab at the clearance that gave a firm hold.
+    split_clearance: float = 0.10
+    split_width: float = 4.0
+    split_barb: float = 0.10
+    split_slit: float = 1.0
+    split_skin: float = 0.6          # slit stops this short of the show face
     rib_base: float = 0.8            # crush rib width where it meets the wall
     lead_in: float = 0.4             # 45° chamfer at socket mouths & tab tips
     detent_height: float = 0.15      # barb bump (coupon only)
@@ -111,6 +118,7 @@ class Params:
     gate_neck: float = 0.6           # snap point where the gate meets the part
     gate_gap: float = 3.0            # rail-to-part distance
     part_spacing: float = 9.0        # between parts in a row (room for a label pad)
+    first_fit: bool = False          # small parts go back into earlier rows (for big kits)
     label_size: float = 3.0
     label_raise: float = 0.4
 
@@ -191,7 +199,7 @@ def with_overrides(p: Params, pairs: list[str]) -> Params:
     Values are Python expressions evaluated with ft/inch available, so
     --set facade_width=ft(30) works.
     """
-    known = {f.name for f in fields(Params)}
+    known = {f.name for f in fields(p)}
     changes = {}
     for pair in pairs:
         name, _, expr = pair.partition("=")
@@ -211,7 +219,7 @@ def check_colors(p: Params):
     names = [n for n, _ in p.palette]
     if len(names) > p.max_tools:
         raise SystemExit(f"palette has {len(names)} colors but max_tools is {p.max_tools}")
-    for f in fields(Params):
+    for f in fields(p):
         if f.name.startswith("color_") and f.name != "color_depth":
             if getattr(p, f.name) not in names:
                 raise SystemExit(f"{f.name}={getattr(p, f.name)!r} is not in palette {names}")

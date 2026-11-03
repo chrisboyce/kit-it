@@ -121,6 +121,7 @@ def feature_report(p: Params):
         "transom_bar": p.transom_bar,
         "joint_width (engraved)": p.joint_width,
         "gate_neck": p.gate_neck,
+        **getattr(p, "kit_xy_features", {}),
     }
     z = {
         "wall_thickness": p.wall_thickness, "base_thickness": p.base_thickness,

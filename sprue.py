@@ -1,9 +1,11 @@
 """Lay flat parts out on a sprue frame, attach gates, emboss labels, verify.
 
 Layout is a simple shelf packer: parts sorted tallest-first, filled into rows
-left to right. Every row has a rail below and above it, so a gate always runs
-straight in Y from a hidden part edge to the nearest rail. Each part gets a
-small label pad on the rail just to its left.
+left to right (or, with first_fit, each into the first row with room for it, which
+packs tighter but makes wider plates). Every row has a rail below and above it, so a gate
+always runs straight in Y from a hidden part edge to the nearest rail. Each part
+gets a small label pad on the rail just to its left. A kit too big for one bed
+goes through paginate() first: whole rows are assigned to plates.
 
 This is used for both the kit (view.py) and the test coupon (coupon.py).
 """
@@ -64,22 +66,48 @@ def _pad_width(text, p):
     return 0 if not text else max(5.0, 0.7 * p.label_size * len(text) + 2.0)
 
 
+def _shelves(items, boxes, p: Params):
+    """Shelves, tallest part first: rows of (item index, x)."""
+    max_w = p.bed_x - 2 * p.bed_margin - 2 * p.rail_width
+    rows, ends = [], []
+    for i in sorted(range(len(items)), key=lambda i: -boxes[i].size.Y):
+        cell = _pad_width(items[i].label, p) + boxes[i].size.X + p.part_spacing
+        # A new row may always start, even if the part alone is too wide; verify() flags that.
+        for r in range(len(ends)) if p.first_fit else range(max(len(ends) - 1, 0), len(ends)):
+            if ends[r] + cell <= max_w:
+                break
+        else:
+            r = len(rows)
+            rows.append([])
+            ends.append(1.0)
+        rows[r].append((i, ends[r]))
+        ends[r] += cell
+    return rows
+
+
+def paginate(items, p: Params):
+    """Split items into plates, by assigning whole shelf rows first-fit in Y."""
+    boxes = [it.piece.body.bounding_box() for it in items]
+    rw, gap = p.rail_width, p.gate_gap
+    limit = p.bed_y - 2 * p.bed_margin
+    plates = []                                 # [[height used, [item indices]]]
+    for row in _shelves(items, boxes, p):
+        cost = 2 * gap + rw + max(boxes[i].size.Y for i, _ in row)
+        for plate in plates:
+            if plate[0] + cost <= limit:
+                break
+        else:
+            plate = [rw, []]
+            plates.append(plate)
+        plate[0] += cost
+        plate[1] += [i for i, _ in row]
+    return [[items[i] for i in sorted(idx)] for _, idx in plates]
+
+
 def layout(items, p: Params) -> Sprue:
     rw, gap = p.rail_width, p.gate_gap
-    max_w = p.bed_x - 2 * p.bed_margin - 2 * rw
     boxes = [it.piece.body.bounding_box() for it in items]
-    order = sorted(range(len(items)), key=lambda i: -boxes[i].size.Y)
-
-    # --- shelf pack ---------------------------------------------------------
-    rows, row, x = [], [], 1.0
-    for i in order:
-        cell = _pad_width(items[i].label, p) + 2.0 + boxes[i].size.X + p.part_spacing - 2.0
-        if row and x + cell > max_w:
-            rows.append(row)
-            row, x = [], 1.0
-        row.append((i, x))
-        x += cell
-    rows.append(row)
+    rows = _shelves(items, boxes, p)
 
     # --- place parts row by row, building rails as we go ----------------------
     poses = [None] * len(items)
