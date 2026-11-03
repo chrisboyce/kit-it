@@ -20,7 +20,15 @@ just                 # = just both coupon  -> everything into ./out
 | `just print` | sprue checks + `out/kit.3mf`, `out/kit.stl`, `out/plate_top.{svg,png}` |
 | `just both`  | both of the above + `out/both_iso.png` (model beside its plate) |
 | `just coupon`| `out/coupon.3mf`, `out/coupon.stl`, `out/coupon_{top,iso}.png` |
-| `just viewer`| browser OCP viewer on :3939; while it's running, `view.py` also sends the model there |
+| `just viewer`| browser OCP viewer on :3939 |
+| `just show`  | checks + send the kit to the viewer, no file output |
+
+**Viewer order matters:** run `just viewer`, open
+http://127.0.0.1:3939/viewer in a browser, *then* `just show` (or any
+`view.py` run). The standalone viewer forwards each model to the browser tab
+that is open at that moment and keeps nothing for tabs opened later, so a tab
+opened afterwards only shows the OCP logo. Reloading the tab also clears it;
+just re-run `just show`.
 
 `just` works from a plain shell too (it wraps itself in `nix develop`). Every
 script runs headless; if VS Code's *OCP CAD Viewer* or `just viewer` is

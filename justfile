@@ -1,6 +1,7 @@
 # Build everything into ./out. Works inside `nix develop` or from a plain shell.
 
-py := if env_var_or_default("IN_NIX_SHELL", "") == "" { "nix develop --command python" } else { "python" }
+# -X faulthandler: if OCCT (C++) crashes, print the Python stack instead of just "signal 11".
+py := if env_var_or_default("IN_NIX_SHELL", "") == "" { "nix develop --command python -X faulthandler" } else { "python -X faulthandler" }
 
 # build the kit (both modes) and the coupon
 all: both coupon
@@ -21,8 +22,14 @@ both *ARGS:
 coupon *ARGS:
     {{py}} coupon.py {{ARGS}}
 
-# browser-based OCP viewer on :3939 (view.py sends models to it when it's running)
+# just check + send the kit to the open viewer (no file output, faster)
+show *ARGS:
+    {{py}} view.py --mode both --no-export {{ARGS}}
+
+# The viewer doesn't keep models for browser tabs opened later, so open the URL first.
+# browser OCP viewer on :3939 (open the page, then `just show`)
 viewer:
+    @echo "Open http://127.0.0.1:3939/viewer in a browser, then run 'just show' in another terminal."
     {{py}} -m ocp_viewer
 
 clean:

@@ -8,6 +8,7 @@ from pathlib import Path
 from build123d import ExportSVG, LineType, Mesher, Unit, Vector, export_stl
 
 VIEWER_PORT = 3939  # ocp_vscode / ocp_viewer default
+VIEWER_URL = f"http://127.0.0.1:{VIEWER_PORT}/viewer"
 
 VIEWS = {
     #        direction toward the camera, camera up

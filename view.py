@@ -34,20 +34,20 @@ def assemble(kit, p):
     return out
 
 
-def run_built(kit, p, out: Path):
+def run_built(kit, p, out: Path, export=True):
     placed = assemble(kit, p)
     errors, lines = checks.interference([(n, nom, ex) for n, nom, ex, _ in placed])
     errors += checks.connectivity([(n, body) for n, *_, body in placed])
     for line in lines + errors:
         print("  " + line)
     model = Compound([body for *_, body in placed])
-    for view in ("iso", "front", "top"):
+    for view in ("iso", "front", "top") if export else ():
         f = render.projection(model, out / f"built_{view}.svg", view)
         print(f"  wrote {f} (+ .png)")
     return model, [n for n, *_ in placed], [b for *_, b in placed], bool(errors)
 
 
-def run_print(kit, p, out: Path):
+def run_print(kit, p, out: Path, export=True):
     items = [Item(spec.name, piece, str(spec.num)) for spec, piece in kit]
     s = layout(items, p)
     plate = s.solid()
@@ -55,10 +55,11 @@ def run_print(kit, p, out: Path):
     errors += checks.connectivity([("sprue plate", plate)])
     for line in lines + errors:
         print("  " + line)
-    render.export_mesh(plate, out / "kit")
-    print(f"  wrote {out / 'kit.3mf'}, {out / 'kit.stl'}")
-    f = render.projection(plate, out / "plate_top.svg", "top", hidden=False)
-    print(f"  wrote {f} (+ .png)")
+    if export:
+        render.export_mesh(plate, out / "kit")
+        print(f"  wrote {out / 'kit.3mf'}, {out / 'kit.stl'}")
+        f = render.projection(plate, out / "plate_top.svg", "top", hidden=False)
+        print(f"  wrote {f} (+ .png)")
     return plate, bool(errors)
 
 
@@ -69,6 +70,8 @@ def main(argv=None):
                     help="override a param, e.g. --set facade_width=ft(30)")
     ap.add_argument("--out", default="out", type=Path)
     ap.add_argument("--no-viewer", action="store_true", help="don't send to an OCP viewer")
+    ap.add_argument("--no-export", action="store_true",
+                    help="skip SVG/PNG/3MF/STL output (fast path for the viewer)")
     args = ap.parse_args(argv)
 
     p = with_overrides(DEFAULT, args.set)
@@ -85,18 +88,19 @@ def main(argv=None):
 
     if args.mode in ("built", "both"):
         print("built:")
-        model, part_names, bodies, bad = run_built(kit, p, args.out)
+        model, part_names, bodies, bad = run_built(kit, p, args.out, not args.no_export)
         failed |= bad
         shown += bodies
         names += part_names
 
     if args.mode in ("print", "both"):
         print("print:")
-        plate, bad = run_print(kit, p, args.out)
+        plate, bad = run_print(kit, p, args.out, not args.no_export)
         failed |= bad
         if args.mode == "both":
             # Put the plate beside the assembled model, lying flat.
             plate = Pos(model.bounding_box().max.X + 25, 0, 0) * plate
+        if args.mode == "both" and not args.no_export:
             f = render.projection(Compound([model, plate]), args.out / "both_iso.svg", "iso",
                                   hidden=False)
             print(f"  wrote {f} (+ .png)")
@@ -105,7 +109,9 @@ def main(argv=None):
 
     if not args.no_viewer and render.viewer_available():
         render.show(shown, names)
-        print(f"sent {len(shown)} objects to the OCP viewer on :{render.VIEWER_PORT}")
+        print(f"sent {len(shown)} objects to the OCP viewer on :{render.VIEWER_PORT}.\n"
+              f"  Still seeing the logo? The viewer only draws into a browser tab that was\n"
+              f"  already open: open {render.VIEWER_URL} first, then re-run (`just show`).")
 
     print(f"{'FAILED' if failed else 'OK'} in {time.time() - t0:.1f}s")
     return 1 if failed else 0
