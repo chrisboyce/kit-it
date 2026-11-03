@@ -2,8 +2,9 @@
 
 A proof of concept for designing 3D-printable HO-scale (1:87.1) "nook"
 storefronts as **snap-together kits printed flat on a sprue**, in Python with
-[build123d](https://github.com/gumyr/build123d). One generic storefront, plus
-a snap-fit test coupon.
+[build123d](https://github.com/gumyr/build123d). One generic storefront, one
+real Colfax building ([Creative Corner](#creative-corner-kit)), plus a snap-fit
+test coupon.
 
 ![built](out/built_color_iso.png)
 
@@ -19,6 +20,7 @@ just                 # = just both coupon  -> everything into ./out
 | `just built` | interference check + `out/built_{iso,front,top}.{svg,png}` |
 | `just print` | sprue + color checks, `out/kit.3mf` (4-color), `out/kit.stl`, `out/kit_T*_*.stl`, `out/plate_{top,color}.png` |
 | `just both`  | both of the above + `out/both_iso.png` (model beside its plate) |
+| `just corner`| the Creative Corner kit, built + 4 plates, into `out/corner/` (~6 min) |
 | `just coupon`| `out/coupon.3mf`, `out/coupon.stl`, `out/coupon_{top,iso}.png` |
 | `just viewer`| browser OCP viewer on :3939 |
 | `just show`  | checks + send the kit to the viewer, no file output |
@@ -58,6 +60,7 @@ identical everywhere. Python deps are pinned in `requirements.txt`.
 | `sprue.py` | **print pose**: shelf layout, rails, gates with snap notches, label pads, checks |
 | `checks.py` | pairwise interference, part connectivity, overhang/bridge spans, feature-size warnings |
 | `view.py` | `--mode built\|print\|both` entry point |
+| `corner.py` | the Creative Corner kit: its params, parts, poses and part list in one file |
 | `coupon.py` | the snap-fit test coupon |
 
 Poses are written as `Plane(origin, x_dir, z_dir)` ("the part's local x goes
@@ -185,11 +188,92 @@ plastic hard. Changes from that:
 * props get their own `prop_clearance` = 0.10 with no ribs
 * float sockets (above)
 
+**New rows for the Creative Corner:** HS (its panel joint) and XL (its feature
+joint, cross-laps at four clearances); see the docstring in `coupon.py`.
+
 **Reading the coupon:** squeeze ≈ `rib_height` − `clearance`. Find your bare
 clearance with the D/SP rows (smallest slot that slides with slight friction),
 your favourite squeeze with the R row, then set
 `rib_height = clearance + squeeze`. Kit sockets are deeper than the coupon
 strips (3.6 vs 3 mm), so the kit feels a little tighter; if torn, pick the looser.
+
+## Creative Corner kit
+
+The two-story corner building at S Main St and Church St, Colfax (55 S Main is
+the gift shop; 11 Church is Heilaman Hall). `just corner` builds it; `--set` works
+as usual. Printing the kit needs the coupon's **HS** and **XL** rows checked first:
+all the joints below depend on them, and neither has been printed yet.
+
+![corner](out/corner/built_color_corner.png)
+
+**Scale and compression.** The model is 220 x 133 mm on its base, 110 mm tall.
+Only one of the two street faces is shortened:
+
+| | real (estimated) | model |
+|---|---|---|
+| Main St face | ~27 ft | 27 ft (94.5 mm) |
+| Church St face | ~97 ft, ~6 bays + west end | 52 ft: 3 bays + west end (182 mm) |
+| Roofline / corner piers | ~30 ft / ~31.5 ft | same |
+| Balcony underside | ~12.3 ft | same |
+| Balcony to overhang | ~7.5 ft | 9 ft, so the doors fit under it |
+
+Real sizes come from Street View thumbnails. With the panos' spacing from their
+metadata, parallax gives ~50 px/m at the Church St wall plane (with a ~90 degree
+FOV, which puts the wall ~10 m from the camera). The double doors come out 5 ft
+wide, which is believable. Treat these as ±10%; a tape measure would beat them.
+Reference panos, for `streetviewpixels-pa.googleapis.com/v1/thumbnail?panoid=..&yaw=..&pitch=..&w=1024&h=640`
+(**negative pitch looks up**; images aren't kept in this repo):
+
+| view | panoid | yaw |
+|---|---|---|
+| corner | `CQ4656yR8m5Y-VzA1hrWhA` | 311, 331 |
+| Church St, straight on | `YCbsBCcdsBSHS9mKA-j7eA`, `Z2um6euyGu35YptXq3tpAQ`, `xlZEZVgetbZ5qM1M6BZ6zQ` | 11 |
+| Main St, straight on | `uCS1xOhDVxhoQF4wfL7MWA` | 282 |
+
+**Two tiers of joint:**
+* **Main panels use split tabs** (three walls, two base slabs). These are the
+  coupon's D10 tab: 4 mm wide, 1 mm slit, 0.10 barbs, in a 0.10 socket. Two to a
+  panel edge, placed asymmetrically, so a panel only goes in one way round. Split
+  prongs can take up spacing error, so these sockets don't float.
+  `joints.split_tab` stops the slit `split_skin` (0.6 mm) short of the front face
+  inside the panel, so a wall's show face stays closed. Base B's keys are 2 mm thick
+  and slide in from the side under a skin, so that seam reads as a sidewalk joint.
+* **Features use the loose fit** (`prop_clearance`, plain friction, no barbs or
+  ribs): storefront, door panel, entry cheeks, decks, overhang, posts, outriggers,
+  railings, cornice, sign, furniture. Their sheets are 1–2 mm.
+
+**Colors:** T1 sage (walls, cornice), T2 stone (trim, sidewalk, bulkheads, sprue),
+T3 iron (posts, outriggers, rails, furniture), T4 rust (decks, overhang, doors,
+storefront frames, coping). Each plate is its own 3MF, set up as in "Slicing on the U1".
+
+**Plates:** `kit_plate1`–`4`, all within the 210 mm usable bed, ~193 cm³ in total
+(about 240 g if it were solid; not sliced yet, so no time estimate).
+
+**Assembly** (part numbers are on the sprue label pads):
+1. Slide base A's keys into base B on a flat surface.
+2. Push the west return (5) into the back of the Church St wall (3), then the
+   Church St wall's end tabs into the back of the Main St wall (4). Press that
+   whole unit into base A.
+3. Entry: push both cheeks (8, 9) into the door panel (7), slide the storefront
+   (6) onto their front tabs, and lower it all into the base from behind, so the
+   storefront sits against the back of the Main St wall.
+4. Stand the lower posts (13–20) in the sidewalk. Drop an outrigger (25–32) onto
+   each post's head, so the two slots cross, with its plain end at the wall.
+5. Church St deck (10): hook its back tabs into the wall with the front edge raised,
+   then swing it down over the post tabs. Same for the Main St deck (11), whose
+   pocket takes the Church St deck's end tab.
+6. Upper posts (21–24) down through the Church St deck, then the overhang (12) the
+   same way as the deck: back tabs first, then down over the post tops.
+7. Railings (33–42), cornice (43), sign (44, up through the deck from below),
+   table (45–47: cross a and b, top on a's tab), chairs (48–51).
+
+**Not checked:** this hasn't been printed, and step 5's swing-in is reasoned from
+the clearances, not simulated. If the decks won't swing in, shorten `deck_tab_pocket`.
+Rails, posts and chairs are at the limit of what prints well, at 0.7–1.0 mm.
+
+**Left out for now:** no roof or back wall (it's open behind, like the nook), and
+windows are open, so you can see through the building. A dark backer sheet behind
+them would help. Also the lamp post, street signs and brick planters, and any lettering.
 
 ## What was verified (in this session)
 
@@ -247,8 +331,9 @@ suitable bottom or top edge would need rotating in the layout, which isn't
 supported.
 
 **Layout packing.** The packer is a plain shelf packer, tallest part first,
-with no rotation. That's fine at 154 × 142 mm, but a bigger building will
-need smarter packing or a second plate.
+with no rotation. A kit too big for one bed gets split into plates by whole
+rows (`sprue.paginate`), and `first_fit` lets small parts drop back into earlier
+rows, but it doesn't nest parts inside others' bounding boxes or holes.
 
 **Relief detail vs nozzle size.**
 * Frames and transom bars are 0.8 mm (two extrusion widths).
@@ -283,7 +368,7 @@ drew the long facade triangles in the wrong order.
 
 * Awning with posts (deferred; the cross-lap prop proves the construction for
   the post).
-* Real Colfax facades.
+* The other Colfax facades (Creative Corner is the first, above).
 * Pre-assigned toolheads in the 3MF (needs a Snapmaker Orca project as a template).
 * 8-color kits split across two plates.
 * Layered/laminated facades.
