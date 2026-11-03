@@ -30,7 +30,7 @@ class Sprue:
     poses: list              # print pose (Location) per item
     parts: list              # part bodies in print pose
     rails: object            # rails + label pads
-    labels: object           # embossed label text
+    labels: list             # embossed label text, one solid per pad (may be empty)
     gates: list = field(default_factory=list)   # [(item index, solid)]
     size: tuple = (0, 0)
     pieces: list = field(default_factory=list)
@@ -40,7 +40,7 @@ class Sprue:
 
         One multi-argument fuse: much faster than adding pieces one at a time.
         """
-        return self.rails.fuse(self.labels, *[g for _, g in self.gates], *self.parts)
+        return self.rails.fuse(*self.labels, *[g for _, g in self.gates], *self.parts)
 
     def color_solids(self, p: Params):
         """{color: solid} for a multi-material print. Regions only share faces:
@@ -50,9 +50,10 @@ class Sprue:
             for color, region in piece.regions().items():
                 by_color.setdefault(color, []).append(pose * region)
         sprue = self.rails.fuse(*[g for _, g in self.gates])
-        sprue = sprue.cut(self.labels, *self.parts)
+        sprue = sprue.cut(*self.labels, *self.parts)
         by_color.setdefault(p.color_sprue, []).append(sprue)
-        by_color.setdefault(p.color_label, []).append(self.labels)
+        if self.labels:
+            by_color.setdefault(p.color_label, []).extend(self.labels)
         out = {}
         for color, solids in by_color.items():
             out[color] = solids[0].fuse(*solids[1:]) if len(solids) > 1 else solids[0]
@@ -116,7 +117,7 @@ def layout(items, p: Params) -> Sprue:
     for x0, x1, y0, y1, text in pads:
         frame += box(x0, x1, y0, y1, 0, rh)
         texts.append(label(text, (x0 + x1) / 2, (y0 + y1) / 2 + 0.3, rh, p))
-    labels = texts[0].fuse(*texts[1:]) if len(texts) > 1 else texts[0]
+    labels = texts
 
     # --- gates ------------------------------------------------------------------
     gates = []
@@ -156,7 +157,7 @@ def verify(s: Sprue, p: Params, threshold=1e-3):
             v = overlap(s.parts[i], s.parts[j])
             if v > threshold:
                 errors.append(f"OVERLAP {s.names[i]} x {s.names[j]}: {v:.3f} mm^3")
-        v = overlap(s.parts[i], s.rails) + overlap(s.parts[i], s.labels)
+        v = overlap(s.parts[i], s.rails) + sum(overlap(s.parts[i], t) for t in s.labels)
         if v > threshold:
             errors.append(f"OVERLAP {s.names[i]} x rails/labels: {v:.3f} mm^3")
     for gi, g in s.gates:

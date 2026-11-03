@@ -9,8 +9,8 @@ Design rule: every precision feature lives in the XY outline of the part it's on
   * Crush ribs are small triangular ridges on socket walls, running along the
     insertion direction. They deform on insertion and hold by friction, which
     suits stiff, brittle PLA better than a flexing snap.
-  * The wedge key is a tapered flat bar (taper in its outline) that slides
-    through a window in a tab under the base and pulls the wall down tight.
+  * Only one socket per part locates it along a wall; the rest float that way
+    (float_clearance) so several pegs never fight each other.
   * Detent barbs (coupon only) are bumps on a split-prong tab's outline.
 """
 
@@ -119,25 +119,6 @@ def socket(cx, cy, sx, sy, z0, z1, p, mouth="top", ribs="y", rib_height=None):
                 rib = Rot(0, 0, 90) * rib  # walls facing x: rotate the y-version
             ribs_out.append(Pos(cx, cy, 0) * rib)
     return cutter, ribs_out
-
-
-def key_window(cx, z_top, p):
-    """Cutter for the window in a tab that the wedge key passes through.
-
-    In the tab's local frame: x across the tab, y along it (z_top is the y of the
-    window's top edge). The window is key_thickness + 2*clearance wide.
-    """
-    w = p.key_thickness + 2 * p.clearance
-    return box(cx - w / 2, cx + w / 2, z_top - p.key_window_h, z_top, -EPS, 100)
-
-
-def wedge_key(p, length, h_small, taper_deg=None):
-    """Tapered key, print frame: x along the key, y=0 is its flat bearing edge,
-    y = h(x) its tapered edge, extruded key_thickness in Z."""
-    t = math.tan(math.radians(p.key_taper_deg if taper_deg is None else taper_deg))
-    h_big = h_small + length * t
-    outline = Polygon((0, 0), (length, 0), (length, h_big), (0, h_small), align=None)
-    return extrude(outline, p.key_thickness, dir=UP), h_big
 
 
 def barb_tab(x, y, p, width, length, barb_at, barb_h, thickness, slit=1.0):

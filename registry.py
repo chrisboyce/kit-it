@@ -8,7 +8,7 @@ angles.
 
 The *print* pose is the part's spot on the sprue, computed by sprue.layout()
 from the same geometry. No part geometry is defined twice: identical parts
-(the two returns, the two keys) share one function and are built once.
+(the two returns) share one function and are built once.
 """
 
 from dataclasses import dataclass
@@ -43,16 +43,6 @@ def _return_pose(side):
     return pose
 
 
-def _key_pose(side):
-    def pose(p):
-        kg = parts.key_geometry(p)
-        x = p.facade_tab_xs[side] + p.key_thickness / 2
-        # Thin end toward the street, flat edge up against the channel ceiling,
-        # tapered edge down, bearing on the bottom of the tab's window.
-        return Location(Plane((x, kg["y_front"], p.zq(p.key_channel_depth)), Y, NEG_X))
-    return pose
-
-
 def _prop_a_pose(p):
     t = p.prop_thickness
     return Location(Plane((p.prop_x - p.prop_tab_x, p.prop_y + t / 2, p.base_thickness), X, NEG_Y))
@@ -68,10 +58,8 @@ REGISTRY = [
     Spec(2, "facade", parts.facade, _facade_pose),
     Spec(3, "return_left", parts.side_return, _return_pose(0)),
     Spec(4, "return_right", parts.side_return, _return_pose(1)),
-    Spec(5, "key_left", parts.key, _key_pose(0)),
-    Spec(6, "key_right", parts.key, _key_pose(1)),
-    Spec(7, "prop_a", parts.prop_a, _prop_a_pose),
-    Spec(8, "prop_b", parts.prop_b, _prop_b_pose),
+    Spec(5, "prop_a", parts.prop_a, _prop_a_pose),
+    Spec(6, "prop_b", parts.prop_b, _prop_b_pose),
 ]
 
 

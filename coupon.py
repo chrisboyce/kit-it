@@ -6,8 +6,12 @@ joint functions as the kit. Rows:
   D10 / D15  detent barbs (0.10 / 0.15 mm) on split-prong tabs, through a plate
              with six slots at clearances 0.05 .. 0.30 mm (labels in 1/100 mm).
              Tabs within a row are identical: try one in every slot.
-  R          crush ribs 0.15 / 0.25 / 0.35 mm at the kit's clearance.
-  W          wedge key under a mini base: 2° and 4° keys (K2, K4), kit clearance.
+  R          crush ribs 0.15 / 0.20 / 0.25 mm at the kit's clearance.
+  SP         plain sockets at 0.05 / 0.10 / 0.15 mm, no ribs, for two tab styles:
+             solid tabs (panels "S") and split, barb-less tabs (panels "P").
+  M1 / M2    one 3-peg panel ("M"), two strips. M1: every socket is tight both
+             ways (over-constrained). M2: the left socket locates, the other two
+             float along the row (float_clearance), as the kit now does.
   KEY        keyed pair: the two facade tab widths. It should only go in one way.
 
     python coupon.py [--set name=value ...] [--out out]
@@ -19,15 +23,16 @@ from pathlib import Path
 
 import checks
 import render
-from joints import EPS, Piece, barb_tab, box, key_window, socket, tab, wedge_key
+from joints import EPS, Piece, barb_tab, box, socket, tab
 from params import DEFAULT, with_overrides
-from parts import key_geometry, label
+from parts import label
 from sprue import Item, layout, verify
 
 CLEARANCES = (0.05, 0.10, 0.15, 0.20, 0.25, 0.30)
 DETENTS = (0.10, 0.15)
-RIBS = (0.15, 0.25, 0.35)
-TAPERS = (2.0, 4.0)
+RIBS = (0.15, 0.20, 0.25)
+PLAIN = (0.05, 0.10, 0.15)
+PEGS = (8.0, 20.0, 32.0)   # M-row tab centers
 PITCH = 10.0
 STRIP_D = 13.0  # strip depth (Y)
 
@@ -84,32 +89,47 @@ def rib_row(p):
     return items
 
 
-def wedge_row(p):
-    """A slice of the kit's base, with the same sockets, channel and keys."""
-    tw, c, tb = p.wall_thickness, p.clearance, p.base_thickness
-    cd, tab_w = p.zq(p.key_channel_depth), p.facade_tab_widths[0]
-    face_y, back_y = 4.0, 4.0 + tw + 6.0
-    n = len(TAPERS)
-    w = 12 + n * PITCH * 1.5
-    body = box(0, w, 0, back_y, 0, tb)
-    body += label("W", 6, back_y / 2, tb, p, size=2.5)
-    ribs, items = [], []
-    for i, taper in enumerate(TAPERS):
-        x = 12 + PITCH * 1.5 * (i + 0.5)
-        kg = key_geometry(p, face_y, back_y, taper)
-        cut, r = socket(x, face_y + tw / 2, tab_w + 2 * c, tw + 2 * c, cd, tb, p, ribs="y")
+def solid_split_row(p):
+    """Same plain sockets, two tab styles: does a slit buy an easier push?"""
+    tw, plate_t, tab_w = p.wall_thickness, 3.0, 4.0
+    body, gates = strip(p, len(PLAIN), plate_t, "SP")
+    for i, c in enumerate(PLAIN):
+        cut, _ = socket(slot_x(i), STRIP_D / 2, tab_w + 2 * c, tw + 2 * c, 0, plate_t, p, rib_height=0)
         body -= cut
-        chw = max(tab_w, p.key_thickness) + 2.0
-        body -= box(x - chw / 2, x + chw / 2, kg["y_front"] - 1.0, back_y + EPS, -EPS, cd)
-        ribs += r
-        body += label(f"{taper:g}", x + 5.5, 2.0, tb, p, size=2.2)
-        key, _ = wedge_key(p, kg["length"], kg["h_small"], taper)
-        items.append(Item(f"key_{taper:g}", Piece(key, [], [(kg["length"] / 2, 0, "-y")]),
-                          f"K{taper:g}"))
-        panel, pg = tab_panel(p, 10, "W")
-        t = tab(5, 0, tab_w, p.facade_tab_len, tw, p.lead_in) - key_window(5, (cd + 0.3) - tb, p)
-        items.append(Item(f"wedge_tab_{taper:g}", Piece(panel + t, [], pg)))
-    return [Item("wedge_block", Piece(body, ribs, [(w * 0.5, 0, "-y")]))] + items
+        body += label(f"{round(c * 100):02d}", slot_x(i), STRIP_D / 2 + 4.5, plate_t, p, size=2.2)
+    items = [Item("sp_strip", Piece(body, [], gates))]
+    L = plate_t + 0.6          # pokes out the far side, so it can be pushed back out
+    for k in range(len(PLAIN)):
+        panel, pg = tab_panel(p, 10, "S")
+        items.append(Item(f"solid_tab_{k}", Piece(panel + tab(5, 0, tab_w, L, tw, p.lead_in), [], pg)))
+        panel, pg = tab_panel(p, 10, "P")
+        slit = box(5 - 0.5, 5 + 0.5, -L - EPS, 2.0, -EPS, tw + EPS)
+        items.append(Item(f"split_tab_{k}",
+                          Piece(panel + tab(5, 0, tab_w, L, tw, p.lead_in) - slit, [], pg)))
+    return items
+
+
+def multi_peg_row(p):
+    """Three pegs in a row, tight everywhere (M1) vs one locator + two floaters (M2)."""
+    tw, c, fc, plate_t, tab_w = p.wall_thickness, p.clearance, p.float_clearance, 3.0, 5.0
+    width = PEGS[-1] + PEGS[0]
+    items = []
+    for name, floats in (("M1", False), ("M2", True)):
+        body = box(0, width, 0, STRIP_D, 0, plate_t)
+        ribs = []
+        for i, x in enumerate(PEGS):
+            cx = fc if floats and i else c
+            cut, r = socket(x, STRIP_D / 2, tab_w + 2 * cx, tw + 2 * c, 0, plate_t, p, ribs="y")
+            body -= cut
+            ribs += r
+        for x in ((PEGS[0] + PEGS[1]) / 2, (PEGS[1] + PEGS[2]) / 2):
+            body += label(name, x, STRIP_D / 2, plate_t, p, size=2.5)
+        items.append(Item(f"multi_strip_{name}", Piece(body, ribs, [(width / 2, 0, "-y")])))
+    panel, pg = tab_panel(p, width, "M")
+    for x in PEGS:
+        panel += tab(x, 0, tab_w, plate_t - 0.2, tw, p.lead_in)
+    items.append(Item("multi_tab", Piece(panel, [], pg)))
+    return items
 
 
 def keyed_row(p):
@@ -133,7 +153,7 @@ def build(p):
     items = []
     for h in DETENTS:
         items += detent_row(p, h)
-    items += rib_row(p) + wedge_row(p) + keyed_row(p)
+    items += rib_row(p) + solid_split_row(p) + multi_peg_row(p) + keyed_row(p)
     return items
 
 

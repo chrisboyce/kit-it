@@ -85,30 +85,26 @@ def feature_report(p: Params):
     This checks the *declared* feature sizes in params, not arbitrary geometry:
     a general thin-wall analysis of a B-rep is a project of its own.
     """
-    win = p.key_thickness + 2 * p.clearance
     xy = {
         "window_frame": p.window_frame,
         "transom_bar": p.transom_bar,
         "joint_width (engraved)": p.joint_width,
         "gate_neck": p.gate_neck,
-        "facade tab beside key window": (min(p.facade_tab_widths) - win) / 2,
-        "facade tab below key window": (p.zq(p.key_channel_depth) + 0.3 - p.key_window_h) - 0.3,
-        "key thin end": _key_small(p),
     }
     z = {
         "wall_thickness": p.wall_thickness, "base_thickness": p.base_thickness,
-        "prop_thickness": p.prop_thickness, "key_thickness": p.key_thickness,
+        "prop_thickness": p.prop_thickness,
         "door_recess": p.door_recess, "window_frame_raise": p.window_frame_raise,
         "sign_raise": p.sign_raise, "cornice_raise": p.cornice_raise,
         "joint_depth": p.joint_depth, "curb_height": p.curb_height,
-        "key_channel_depth": p.key_channel_depth, "label_raise": p.label_raise,
+        "label_raise": p.label_raise,
         "rail_height": p.rail_height, "gate_height": p.gate_height,
         "color_depth": p.color_depth,
     }
     # Intentionally below the nozzle width: these are the fit features the
     # coupon exists to validate.
     fit = {"rib_height": p.rib_height, "detent_height": p.detent_height,
-           "clearance": p.clearance}
+           "clearance": p.clearance, "prop_clearance": p.prop_clearance}
 
     lines = []
     for k, v in xy.items():
@@ -125,7 +121,3 @@ def feature_report(p: Params):
                          f"(intentional fit feature; validate on the coupon)")
     return lines
 
-
-def _key_small(p):
-    import parts  # local import: parts imports params, not checks
-    return parts.key_geometry(p)["h_small"]

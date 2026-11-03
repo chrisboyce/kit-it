@@ -6,12 +6,11 @@ World frame (used by the built poses in registry.py):
   base underside at z=0. The facade's front face sits at y = sidewalk_depth.
 """
 
-import math
 import os
 
 from build123d import Align, Circle, Pos, Rectangle, Text, extrude
 
-from joints import EPS, UP, Piece, barb_tab, box, key_window, socket, tab, wedge_key  # noqa: F401
+from joints import EPS, UP, Piece, box, socket, tab
 from params import Params
 
 FONT = os.environ.get("COLFAX_FONT")  # pinned by flake.nix; None -> build123d default
@@ -24,35 +23,15 @@ def label(text, x, y, z, p, size=None):
 
 
 # ---------------------------------------------------------------------------
-# Wedge key placement is shared by the base (channel), the facade (window) and
-# the key itself, so it's computed once here.
-# ---------------------------------------------------------------------------
-def key_geometry(p: Params, face_y=None, back_y=None, taper_deg=None):
-    """Where the wedge key sits when assembled, and how big it is.
-
-    face_y: y of the keyed wall's front face; back_y: the base's back edge
-    (the key slides in from there). Defaults are the kit's; the coupon passes its own.
-    """
-    tw = p.wall_thickness
-    Ds = p.sidewalk_depth if face_y is None else face_y
-    back = p.base_depth if back_y is None else back_y
-    lead = 1.5                                   # key tip passes this far beyond the tab
-    y_front = Ds - lead
-    length = back + 1.0 - y_front                # sticks out 1 mm past the back edge
-    t = math.tan(math.radians(p.key_taper_deg if taper_deg is None else taper_deg))
-    # Seated when the key's height at the back face of the tab equals the gap.
-    h_small = p.key_gap - (tw + lead) * t
-    return {"y_front": y_front, "length": length, "h_small": h_small}
-
-
-# ---------------------------------------------------------------------------
 def base(p: Params) -> Piece:
     """Sidewalk slab with curb, expansion joints and every socket.
 
-    Prints right side up. The key channels on the underside are short bridges.
+    Prints right side up. Each wall gets one *locating* socket that fixes it
+    along its length; its other sockets float that way (float_clearance) and
+    only grip across the wall's thickness, where the ribs are.
     """
     W, D, tb, tw = p.facade_width, p.base_depth, p.base_thickness, p.wall_thickness
-    Ds, c, cd = p.sidewalk_depth, p.clearance, p.zq(p.key_channel_depth)
+    Ds, c, fc = p.sidewalk_depth, p.clearance, p.float_clearance
     body = box(0, W, 0, D, 0, tb)
 
     # Curb: the street strip in front is one curb height lower.
@@ -72,29 +51,27 @@ def base(p: Params) -> Piece:
         body -= box(0.5, W - 0.5, yj - jw / 2, yj + jw / 2, tb - jd, tb + EPS)
 
     ribs = []
-    # Facade sockets: through the skin above the key channel. Ribs press the
-    # facade's faces (y walls).
-    kg = key_geometry(p)
-    for x, w in zip(p.facade_tab_xs, p.facade_tab_widths):
-        cut, r = socket(x, Ds + tw / 2, w + 2 * c, tw + 2 * c, cd, tb, p, ribs="y")
-        chw = max(w, p.key_thickness) + 2.0
+    # Facade sockets: straight through. Ribs press the facade's faces (y walls).
+    # The narrow tab locates the facade in x; the wide one floats in x.
+    for i, (x, w) in enumerate(zip(p.facade_tab_xs, p.facade_tab_widths)):
+        cut, r = socket(x, Ds + tw / 2, w + 2 * (c if i == 0 else fc), tw + 2 * c, 0, tb, p,
+                        ribs="y")
         body -= cut
-        body -= box(x - chw / 2, x + chw / 2, kg["y_front"] - 1.0, D + EPS, -EPS, cd)
         ribs += r
 
     # Return sockets: straight through. Ribs press the returns' faces (x walls).
+    # The return is located in y by its shoulder on the facade back, so these float in y.
     for x0 in p.return_xs:
         cut, r = socket(x0 + tw / 2, Ds + tw + p.return_depth / 2,
-                        tw + 2 * c, p.return_tab_width + 2 * c, 0, tb, p, ribs="x")
+                        tw + 2 * c, p.return_tab_width + 2 * fc, 0, tb, p, ribs="x")
         body -= cut
         ribs += r
 
-    # Prop socket: blind pocket; prop piece A stands in the XZ plane.
-    pt = p.prop_thickness
-    cut, r = socket(p.prop_x, p.prop_y, p.prop_tab_width + 2 * c, pt + 2 * c,
-                    tb - p.zq(p.prop_tab_len + 0.2), tb, p, ribs="y")
+    # Prop socket: blind pocket, plain friction fit; prop piece A stands in the XZ plane.
+    pt, pc = p.prop_thickness, p.prop_clearance
+    cut, _ = socket(p.prop_x, p.prop_y, p.prop_tab_width + 2 * pc, pt + 2 * pc,
+                    tb - p.zq(p.prop_tab_len + 0.2), tb, p, rib_height=0)
     body -= cut
-    ribs += r
 
     gates = [(0.4 * W, D, "+y"), (0.6 * W, D, "+y")]   # back edge: hidden
     return Piece(body, ribs, gates, color=p.color_base)
@@ -109,12 +86,9 @@ def facade(p: Params) -> Piece:
     W, H, tw, c = p.facade_width, p.wall_height, p.wall_thickness, p.clearance
     body = box(0, W, 0, H, 0, tw)
 
-    # Keyed bottom tabs (different widths), each with a window for the wedge key.
-    tb, cd = p.base_thickness, p.zq(p.key_channel_depth)
-    win_top = (cd + 0.3) - tb   # window top, in facade-local y (base top is y=0)
+    # Keyed bottom tabs (different widths, so it only goes in one way).
     for x, w in zip(p.facade_tab_xs, p.facade_tab_widths):
         body += tab(x, 0, w, p.facade_tab_len, tw, p.lead_in)
-        body -= key_window(x, win_top, p)
 
     # Color: each face feature also claims color_depth of material beneath it.
     paints = []
@@ -157,12 +131,13 @@ def facade(p: Params) -> Piece:
     paints.append((p.color_trim, box(-EPS, W + EPS, H - p.coping_height, H + EPS, z_paint, top)))
 
     # Blind pockets in the back face for the returns' front tabs. The pocket
-    # mouth is on the bed (z=0); its roof prints as a short bridge.
+    # mouth is on the bed (z=0); its roof prints as a short bridge. The return
+    # stands on the base, so these float in height and only grip its faces.
     ribs = []
     pd = p.zq(p.return_front_tab_len + 0.2)
     for x0 in p.return_xs:
         for ty in p.return_tab_ys:
-            cut, r = socket(x0 + tw / 2, ty, tw + 2 * c, p.return_tab_width + 2 * c,
+            cut, r = socket(x0 + tw / 2, ty, tw + 2 * c, p.return_tab_width + 2 * p.float_clearance,
                             0, pd, p, mouth="bottom", ribs="x")
             body -= cut
             ribs += r
@@ -188,14 +163,6 @@ def side_return(p: Params) -> Piece:
 
 
 # ---------------------------------------------------------------------------
-def key(p: Params) -> Piece:
-    """Wedge key. Slides in from the back, under the base, through a facade tab."""
-    kg = key_geometry(p)
-    solid, _ = wedge_key(p, kg["length"], kg["h_small"])
-    return Piece(solid, [], [(0.5 * kg["length"], 0, "-y")], color=p.color_key)
-
-
-# ---------------------------------------------------------------------------
 def _planter_outline(p: Params):
     """Sidewalk planter with a shrub, as a flat silhouette (x width, y up)."""
     w, H = p.prop_width, p.prop_height
@@ -218,7 +185,7 @@ def _planter_paints(p: Params):
 
 def prop_a(p: Params) -> Piece:
     """Cross-lap prop, piece A: slot from the top, tab into the sidewalk."""
-    w, H, t, c = p.prop_width, p.prop_height, p.prop_thickness, p.clearance
+    w, H, t, c = p.prop_width, p.prop_height, p.prop_thickness, p.prop_clearance
     body = extrude(_planter_outline(p), t, dir=UP)
     body -= box(w / 2 - t / 2 - c, w / 2 + t / 2 + c, H / 2, H + EPS, -EPS, t + EPS)
     body += tab(p.prop_tab_x, 0, p.prop_tab_width, p.prop_tab_len, t, p.lead_in)
@@ -227,7 +194,7 @@ def prop_a(p: Params) -> Piece:
 
 def prop_b(p: Params) -> Piece:
     """Cross-lap prop, piece B: slot from the bottom, so it straddles piece A."""
-    w, H, t, c = p.prop_width, p.prop_height, p.prop_thickness, p.clearance
+    w, H, t, c = p.prop_width, p.prop_height, p.prop_thickness, p.prop_clearance
     body = extrude(_planter_outline(p), t, dir=UP)
     body -= box(w / 2 - t / 2 - c, w / 2 + t / 2 + c, -EPS, H / 2, -EPS, t + EPS)
     return Piece(body, [], [(0.15 * w, 0, "-y"), (0.85 * w, 0, "-y")],

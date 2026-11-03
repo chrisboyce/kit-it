@@ -52,7 +52,7 @@ identical everywhere. Python deps are pinned in `requirements.txt`.
 | file | role |
 |---|---|
 | `params.py` | every dimension and fit value. `ft()`/`inch()` for scale sizes; printer values in mm; `zq()` snaps Z heights to whole layers |
-| `joints.py` | tab, socket (+ lead-in, crush ribs), key window, wedge key, barb tab, `Piece` |
+| `joints.py` | tab, socket (+ lead-in, crush ribs), barb tab, `Piece` |
 | `parts.py` | one function per part → `Piece` in its print frame (bed face at Z=0) |
 | `registry.py` | the part list: number, name, part function, **built pose** |
 | `sprue.py` | **print pose**: shelf layout, rails, gates with snap notches, label pads, checks |
@@ -62,7 +62,7 @@ identical everywhere. Python deps are pinned in `requirements.txt`.
 
 Poses are written as `Plane(origin, x_dir, z_dir)` ("the part's local x goes
 along x_dir, the face that was on the bed faces z_dir"), which reads much better
-than Euler angles. Identical parts (the two returns, the two keys) share one
+than Euler angles. Identical parts (the two returns) share one
 function and are built once.
 
 ## Changing fit and dimensions
@@ -71,12 +71,12 @@ Edit `params.py`, or override any value for one run:
 
 ```sh
 just both --set facade_width='ft(30)' --set clearance=0.2
-just coupon --set rib_height=0.3
+just coupon --set rib_height=0.25
 ```
 
-Fit knobs: `clearance` (per side), `rib_height`, `rib_base`, `lead_in`,
-`detent_height`, `facade_tab_widths` (keep them different: that's the keying),
-`return_tab_width`, `key_taper_deg`, `key_window_h`. Tab *thickness* is always
+Fit knobs: `clearance` (per side), `rib_height`, `float_clearance`,
+`prop_clearance`, `rib_base`, `lead_in`, `detent_height`, `facade_tab_widths`
+(keep them different: that's the keying), `return_tab_width`. Tab *thickness* is always
 the thickness of the part the tab is on (`wall_thickness`/`prop_thickness`),
 because tabs are part of a flat part's outline.
 
@@ -89,7 +89,7 @@ and every assignment are in `params.py`:
 |---|---|---|
 | T1 | brick | facade, returns |
 | T2 | trim | window frames + transoms, cornice, coping, sprue labels |
-| T3 | concrete | base, keys, planter boxes, sprue rails/gates |
+| T3 | concrete | base, planter boxes, sprue rails/gates |
 | T4 | accent | sign band, door, shrubs |
 
 ```sh
@@ -143,29 +143,57 @@ layers).
   joints). Small triangular ribs on the socket walls run along the insertion
   direction and squash as the tab goes in. The facade's two tabs are different
   widths, so it only goes in facing the street.
-* **Wedge key** locks the facade. Its tabs go through the base, and a tapered
-  key slides in from the back, under the base, through a window in each tab,
-  pulling the wall down tight. It needs no flex, which suits PLA.
+* **One locator per direction.** Ribs only press across a wall's thickness.
+  Along the wall, exactly one socket fixes the part, and every other socket
+  has `float_clearance` (0.4 mm) of room per side that way:
+  * facade: the narrow (left) tab locates it in x; the wide tab floats in x.
+  * returns: they're located front-to-back by their shoulder on the facade back
+    and in height by standing on the base, so their base socket floats in y
+    and the facade pockets float in height.
+
+  Two tight pegs per part is fine, but three or more tight ones fight each
+  other: any spacing error (shrink, warp, slicer rounding) has to be forced in,
+  and the joint loosens with every assembly. Floating the extras removes that
+  fight without losing grip, because the grip is in the other direction.
 * **Cross-lap prop.** Two flat planter silhouettes slot into an X; piece A tabs
-  into a socket in the sidewalk.
+  into a pocket in the sidewalk. Plain friction at `prop_clearance` (0.10), no ribs.
 * **Detent barbs** are on the coupon only (see rough edges).
 
-Assembly: push the returns into the facade's back pockets, lower that
-subassembly into the base, slide the two keys in from the back, put the planter
-together.
+Assembly: push the returns into the facade's back pockets, press that
+subassembly into the base, put the planter together and press it in.
+
+## Tuning from prints
+
+First print (Snapmaker U1, PLA, 0.2 mm): the original kit (0.15 clearance +
+0.25 ribs, i.e. 0.10 mm squeeze per side, plus wedge keys) was very tight, and
+the keyed joint held so well that the wedge keys were unnecessary. On the
+coupon, a split D10 tab slides with slight friction at 0.15 and is a nice firm
+hold at 0.10. So the printer is accurate, and there's no need to squeeze
+plastic hard. Changes from that:
+* wedge keys, their windows and the base's key channel removed (2 fewer parts)
+* base 5.0 → 3.6 mm (no channel to fit)
+* `rib_height` 0.25 → 0.20 (squeeze 0.05 per side)
+* props get their own `prop_clearance` = 0.10 with no ribs
+* float sockets (above)
+
+**Reading the coupon:** squeeze ≈ `rib_height` − `clearance`. Find your bare
+clearance with the D/SP rows (smallest slot that slides with slight friction),
+your favourite squeeze with the R row, then set
+`rib_height = clearance + squeeze`. Kit sockets are deeper than the coupon
+strips (3.6 vs 3 mm), so the kit feels a little tighter; if torn, pick the looser.
 
 ## What was verified (in this session)
 
 * **Clean build:** `just` builds everything with exit 0. Check A finds 0
-  collisions over 28 pairs. Check B shows every one of the 18 crush ribs
-  overlapping its mating part (about 0.06–0.13 mm³ each). Both plates fit:
-  kit 178 × 153 mm, coupon 199 × 83 mm on a 220 bed.
-* **The check catches real collisions:** with `clearance = -0.10` in
-  `params.py`, check A reported 9 collisions, one per joint type and instance
-  (base×facade, base×returns, base×prop, facade×returns, facade×keys,
-  prop×prop), and exited 1. Restored afterwards.
-* **Keying:** placing the facade turned 180° (facing backwards) gives a
-  base×facade collision of 7.4 mm³. Placed correctly it fits.
+  collisions over 15 pairs. Check B shows all 16 crush ribs overlapping
+  their mating part. Both plates fit: kit 154 × 142 mm, coupon 199 × 102 mm
+  on a 220 bed. (Before the wedge removal: 28 pairs, 18 ribs, kit 178 × 153.)
+* **The check catches real collisions:** `--set clearance=-0.10` gives 5
+  collisions (base×facade, base×returns, facade×returns) and exit 1. The props
+  use `prop_clearance`, so they don't react to that override.
+* **Keying:** placing the facade turned 180° (facing backwards) gave a
+  base×facade collision of 7.4 mm³ (checked before the float sockets; the wide
+  tab still can't enter the narrow locating socket, so it should still hold).
 * **Everything propagates:** I set `facade_width` 25 → 30 ft and
   `wall_thickness` 3.0 → 2.4 mm and rebuilt. The base and facade widened to
   105 mm, the right return moved to x = 101.6, the returns thinned to 2.4 mm,
@@ -181,13 +209,12 @@ together.
   build if any part or plate isn't exactly one solid.
 
 * **Color:** 4 colors, and the regions sum to exactly the plate's volume
-  (42 990.4 mm³) with 0 overlaps. The previews (`built_color_iso.png`,
+  (36 578.2 mm³) with 0 overlaps. The previews (`built_color_iso.png`,
   `plate_color.png`) show the expected assignment. Snapmaker Orca's U1
-  profile loads `kit.3mf` as one object with 4 parts and slices it (single
-  filament: 36.7 g, about 2 h 25 m).
-
-**Not verified: nothing has been printed yet.** The next real step is to print
-`coupon.3mf` in PLA at 0.2 mm and see which slots fit.
+  profile loaded the pre-wedge-removal `kit.3mf` as one object with 4 parts
+  and sliced it (single filament: 36.7 g, about 2 h 25 m).
+* **Printed:** the first kit and coupon (see "Tuning from prints"). The
+  current fits, float sockets and the SP/M coupon rows are not printed yet.
 
 ## Rough edges
 
@@ -195,7 +222,7 @@ together.
 With a 3 mm split prong, 0.8 mm wide, deflecting 0.15 mm, the bending strain
 is about 2%, which is at PLA's limit for one assembly and above it for repeated
 use. In practice a detent this small behaves like a friction fit that crushes a
-little plastic. That's why the kit uses crush ribs and wedge keys, and detents
+little plastic. That's why the kit uses crush ribs, and detents
 only appear on the coupon. Unknowns only a print will answer:
 * how a slicer renders a 0.25 mm × 0.8 mm triangular rib (well below one
   extrusion width): it may become a slight bulge or vanish
@@ -211,9 +238,8 @@ suitable bottom or top edge would need rotating in the layout, which isn't
 supported.
 
 **Layout packing.** The packer is a plain shelf packer, tallest part first,
-with no rotation. On the kit plate, key 6 ends up alone on its own row. That's
-fine at 178 × 153 mm, but a bigger building will need smarter packing or a
-second plate.
+with no rotation. That's fine at 154 × 142 mm, but a bigger building will
+need smarter packing or a second plate.
 
 **Relief detail vs nozzle size.**
 * Frames and transom bars are 0.8 mm (two extrusion widths).
@@ -223,8 +249,8 @@ second plate.
 * The `min_feature` check covers the feature sizes declared in `params.py`,
   not arbitrary geometry. A general thin-wall analysis of B-rep solids is a
   project of its own.
-* The base is 5 mm thick (about 1.4 ft at scale) to fit the key channel, so
-  it reads as a display plinth.
+* The base is 3.6 mm thick (about 1 ft at scale), so it still reads a bit
+  like a display plinth.
 
 **build123d / environment gotchas.**
 * `extrude()` follows the outline's winding: a clockwise polygon extrudes

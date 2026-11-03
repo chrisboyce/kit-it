@@ -39,12 +39,16 @@ class Params:
 
     # --- walls (printer-driven) -------------------------------------------
     wall_thickness: float = 3.0      # facade + returns; ~10" at scale (brick)
-    base_thickness: float = 5.0      # sidewalk slab / plinth
+    base_thickness: float = 3.6      # sidewalk slab / plinth (18 layers)
     prop_thickness: float = 1.2      # cross-lap prop sheets (3 nozzle widths)
 
     # --- fit (mm, per side) --------------------------------------------------
     clearance: float = 0.15          # gap between tab and socket wall, per side
-    rib_height: float = 0.25         # crush rib protrusion into the socket
+    rib_height: float = 0.20         # crush rib protrusion into the socket
+    # Along a wall, only one socket per part locates it; the others get this
+    # much room per side so peg spacing errors don't have to be forced in.
+    float_clearance: float = 0.40
+    prop_clearance: float = 0.10     # cross-lap slots + prop pocket: plain friction, no ribs
     rib_base: float = 0.8            # crush rib width where it meets the wall
     lead_in: float = 0.4             # 45° chamfer at socket mouths & tab tips
     detent_height: float = 0.15      # barb bump (coupon only)
@@ -57,12 +61,6 @@ class Params:
     return_front_tab_len: float = 1.4       # into blind pockets in the facade back
     prop_tab_width: float = 2.0
     prop_tab_len: float = 2.4
-
-    # --- wedge key (locks the facade tabs under the base) ---------------------
-    key_thickness: float = 2.6       # print Z of the key; window = this + 2*clearance
-    key_window_h: float = 1.6
-    key_taper_deg: float = 3.0
-    key_channel_depth: float = 2.8   # channel in the base underside the key slides in
 
     # --- building (scale) -----------------------------------------------------
     facade_width: float = ft(25)
@@ -129,7 +127,6 @@ class Params:
     color_sign: str = "accent"       # sign band
     color_door: str = "accent"
     color_base: str = "concrete"
-    color_key: str = "concrete"
     color_planter: str = "concrete"
     color_shrub: str = "accent"
     color_sprue: str = "concrete"    # rails, gates, label pads
@@ -168,11 +165,6 @@ class Params:
     def facade_tab_len(self) -> float:
         # Through the base, stopping 0.3 mm above the table.
         return self.base_thickness - 0.3
-
-    @property
-    def key_gap(self) -> float:
-        # Channel ceiling down to the bottom of the key window.
-        return self.key_window_h - 0.3
 
     @property
     def return_tab_ys(self) -> tuple:
