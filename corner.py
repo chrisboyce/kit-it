@@ -1405,7 +1405,9 @@ def _plant(p, key, half, pot_h, H, slot_from_top) -> tuple:
     pot = Polygon((-w0, 0), (w0, 0), (w1, pot_h - rim), (half, pot_h - rim), (half, pot_h),
                   (-half, pot_h), (-half, pot_h - rim), (-w1, pot_h - rim), align=None)
     solids = _foliage(lobes, t)
-    body = extrude(pot, t, dir=UP).fuse(*solids)
+    # A stem into the foliage's core, which stays put: random clumps needn't reach the pot.
+    stem = box(-0.45 * half, 0.45 * half, pot_h - EPS, 0.54 * height, 0, t)
+    body = extrude(pot, t, dir=UP).fuse(stem, *solids)
     foliage = solids[0].fuse(*solids[1:])
     fill = _fill_pinholes(foliage, t)
     if fill:
