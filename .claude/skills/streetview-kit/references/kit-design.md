@@ -35,6 +35,24 @@ Two shelf-packing limits come up on most kits: a tall part forces a whole row, a
 sorts tallest first. If a plate overflows, move tall or wide parts to a plate with the colors they
 need, before shrinking anything.
 
+## Objects, not buildings
+
+The Colfax caboose showed that the same approach works for an object, with these differences:
+
+- **There's no slab to build on.** Find the object's own structural sheet, like the caboose's floor, and
+  let the panels' split tabs go into that. Anything that's a box still works as panels and sheets.
+- **Give it something to stand on.** A small display base sets it off. Keep the object removable unless
+  it needs to be fixed.
+- **Don't compress it if it fits.** Objects often fit whole. Their proportions are the point.
+- **Standard dimensions help.** Vehicles and machines have known sizes (HO gauge, wheel diameters, car
+  widths), so use them as the ruler when photos are unclear. Mark them as assumed.
+- **Think in cross-laps.** Wheel sets and small boxes like a cupola are good cross-lapped sheets, and they
+  read as solid from any side. Put a dark sheet inside anything with windows.
+- **Hidden interior tabs can meet.** The caboose's spine and truck both had tabs into the floor, from
+  either side, and they collided when the truck moved. Keep them apart along the length.
+- **Everything prints flat, so curves in section don't exist.** A slightly arched roof becomes a flat
+  sheet. Say so, rather than trying to fake it with something fragile.
+
 ## Two tiers of joint
 
 The person chose this split after tuning, so keep it.

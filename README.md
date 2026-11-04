@@ -22,6 +22,7 @@ just                 # = just both coupon  -> everything into ./out
 | `just both`  | both of the above + `out/both_iso.png` (model beside its plate) |
 | `just corner`| the Creative Corner kit, built + 5 plates, into `out/corner/` (~13 min) |
 | `just market`| the Colfax Market kit, built + 3 plates, into `out/market/` (~3 min) |
+| `just caboose`| the Colfax caboose kit, built + 2 plates, into `out/caboose/` (~5 min) |
 | `just coupon`| `out/coupon.3mf`, `out/coupon.stl`, `out/coupon_{top,iso}.png` |
 | `just viewer`| browser OCP viewer on :3939 |
 | `just show`  | checks + send the kit to the viewer, no file output |
@@ -60,7 +61,7 @@ identical everywhere. Python deps are pinned in `requirements.txt`.
 
 | file | role |
 |---|---|
-| `corner.py`, `market.py` | the kits: params, parts, poses, plates. New ones come from the `streetview-kit` skill |
+| `corner.py`, `market.py`, `caboose.py` | the kits: params, parts, poses, plates. New ones come from the `streetview-kit` skill |
 | `viewcache.py` | reuses a kit's last passing build while nothing has changed |
 | `vary.py` | seeded randomness for variety within one model (see "Variety") |
 | `params.py` | every dimension and fit value. `ft()`/`inch()` for scale sizes; printer values in mm; `zq()` snaps Z heights to whole layers |
@@ -439,6 +440,81 @@ beyond the curb. Posters are random blocks.
 **Left out:** the neighboring buildings, the gooseneck lights on the false front, the lamp post, the
 flag, the planter's rocks and the bike racks. The north roof slope and the back are open.
 
+## Colfax caboose kit
+
+The red wood-sided Southern Pacific caboose on display in Colfax, by N Main St. It's the first
+object rather than a building, made with the `streetview-kit` skill. `just caboose` builds it, in
+about 5 minutes: 25 parts, 2 plates, 4 filaments and no spool change. The joints are the usual two
+tiers, so printing it needs the coupon's **HS** and **XL** rows checked first.
+
+**Sizes** come from Street View, with the body height as the ruler, so treat them as ±10%. It isn't
+compressed: it fits as it is.
+
+| | real | kit | source |
+|---|---|---|---|
+| body length | ~33 ft | 116 mm | photos, against the height |
+| body width | ~9.5 ft | 33 mm | the end view |
+| body height | ~8.5 ft | 30 mm | **assumed**, from typical cars |
+| floor above rail | ~4 ft | 14 mm | **assumed**, typical |
+| wheels | 33 in | 9.6 mm | **assumed**, typical |
+| cupola | ~9.7 ft long, 3 ft high | 34 x 10.5 mm | photos |
+| track gauge | 4 ft 8.5 in | 16.5 mm | HO standard |
+
+| view | panoid | yaw | pitch |
+|---|---|---|---|
+| west side, as linked | `aCtmU6m3CjrTEHB-KLOqEg` | 127 | 9 |
+| west side, straight on | `6qb1psUT8N03tLUVvRG1xQ` | 110 | -3 |
+| east side, at an angle | `DgVLALzWQlXZhYBqXpNObQ` | 175 | -5 |
+| north end | `h4Cd1FBkB29TxjRNjgwirw` | 195 | -5 |
+
+**Construction:** it's a box of split-tab panels on a floor, and everything else is loose-fit: the
+cupola and trucks are cross-lapped, and a dark sheet down the middle is what you see through the
+windows. Each wheel sheet sits on the base's rails at HO gauge. It doesn't roll, and it has no flanges to
+stay on real track. Nothing fixes the car to the base, so it lifts off.
+
+**Colors:** four filaments, on both plates, so there's no spool change.
+
+| filament | used for |
+|---|---|
+| red | body, cupola, roofs, truck frames, platform decks, the base's border |
+| cream | lettering, grab irons, end rungs, railings, the base's rails |
+| coal | underframe, wheels, steps, spine, window glass, roof seams, sill shadows, ties |
+| ballast | the base |
+
+| plate | parts |
+|---|---|
+| `kit_plate1_frame` | display base, floor, roof, trucks, steps |
+| `kit_plate2_body` | sides, ends, spine, cupola, railings |
+
+**Assembly** (part numbers are on the sprue label pads):
+1. Push the sides' (3, 4) end tabs into the backs of the ends (5, 6), then press the box into the floor (2).
+2. Drop the spine (7) in from above, into the floor.
+3. Trucks: cross a bolster with two frames (18 with 14 and 15; 19 with 16 and 17), then press its tab up
+   into the floor.
+4. Steps (20-23) up into the floor's corners, railings (24, 25) down into the platforms.
+5. Cupola: cross its ends (11, 12) with its sides (9, 10), press the tabs into the roof (8), then add its
+   roof (13).
+6. Lower the roof onto the spine's tabs, and set the car on the base (1).
+
+**Not checked:** nothing here has been printed or sliced. The lettering's smallest strokes are about
+0.6 mm. Railings and steps are 0.8-0.9 mm bars, and the cupola ends' thin legs are about 0.8 mm wide.
+
+**Read from photos, so uncertain:** the east side's windows were only seen at an angle, past the fence.
+The south end wasn't seen close up, so it's assumed to match the north end.
+
+**The car's number is left blank.** It reads as "?63" in the imagery, and a wrong number on a town
+landmark would be worse than none. Once someone reads it off the car, set `road_number` in
+`CabooseParams`; it'll print at a size that needs checking, or stay as the block if it's too fine.
+
+**Changed or invented:** the real roof is very slightly arched, and it's flat here because everything
+prints flat. The roof seams, end ladder rungs and platform deck color are assumptions. The emblem under
+the name is a simple block pattern, not the real logo.
+
+**Name and marks:** "Southern Pacific" and its logos may be trademarks of the railroad's successor.
+Check before selling this or giving it out widely. The name is a single paint volume, so it's easy to change.
+
+**Left out:** the plaza's iron fence, benches and flagpoles; brake wheel, chimney and couplers.
+
 ## What was verified (in this session)
 
 * **Clean build:** `just` builds everything with exit 0. Check A finds 0
@@ -532,5 +608,5 @@ drew the long facade triangles in the wrong order.
 
 * Awning with posts (deferred; the cross-lap prop proves the construction for
   the post).
-* The other Colfax facades (Creative Corner and the Market so far, above).
+* The other Colfax landmarks (Creative Corner, the Market and the caboose so far, above).
 * Layered/laminated facades.

@@ -25,6 +25,7 @@ from dataclasses import replace
 from build123d import Compound, Pos
 
 import checks
+import caboose
 import corner
 import market
 import registry
@@ -38,6 +39,7 @@ KITS = {
     "nook": (DEFAULT, registry.REGISTRY, ("iso", "front", "top"), None),
     "corner": (corner.DEFAULT, corner.REGISTRY, ("corner", "front", "right", "top"), corner.PLATES),
     "market": (market.DEFAULT, market.REGISTRY, ("corner", "front", "right", "top"), market.PLATES),
+    "caboose": (caboose.DEFAULT, caboose.REGISTRY, ("corner", "front", "right", "top"), caboose.PLATES),
 }
 
 

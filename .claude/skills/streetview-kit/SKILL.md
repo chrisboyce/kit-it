@@ -1,14 +1,17 @@
 ---
 name: streetview-kit
-description: Turn a Google Street View link of a real building into a complete, checked, snap-together HO-scale kit in this repo. Gathers straight-on reference views, works out the building's size and features, then models it in build123d with sprue plates and multi-color 3MFs. Use this whenever someone gives a Google Maps or Street View URL and wants a kit, model or printable version of that building, or says things like "make a kit of this building" or "let's do this storefront next", even if they don't say "skill" or "Street View".
+description: Turn a Google Street View link of a real building or landmark object (a caboose, a locomotive, a gazebo, a statue) into a complete, checked, snap-together HO-scale kit in this repo. Gathers reference views, works out the subject's size and features, then models it in build123d with sprue plates and multi-color 3MFs. Use this whenever someone gives a Google Maps or Street View URL and wants a kit, model or printable version of what's in it, or says things like "make a kit of this building" or "let's do this storefront next", even if they don't say "skill" or "Street View".
 ---
 
 # Street View to kit
 
 Go from a link to a finished kit without stopping for approval: images, design, model, plates,
-checks, commit. Pause only if the link doesn't reach a usable view of the building. Record every
+checks, commit. Pause only if the link doesn't reach a usable view of the subject. Record every
 assumption as you go, because the person reviews the finished model and needs to see what you
 guessed.
+
+The subject is usually a building, but it can be an object. If so, also read "Objects, not
+buildings" in `references/kit-design.md`, and use `caboose.py` as the example.
 
 Read `references/kit-design.md` before designing. It holds the rules that came from real prints.
 Read the README's "Creative Corner kit" and "Variety" sections and skim `corner.py`: that's the
@@ -41,6 +44,10 @@ Things that aren't obvious:
   direction there, so the yaw to look across it is `road` ± 90.
 - **Panorama dates vary**, and neighbors can be years apart. If the views disagree, prefer the
   link's own panorama: that's the building as the person saw it.
+- **Aim, don't sweep, for a small subject.** Compass views from nearby mostly miss it. Work out where it
+  is from the linked view, then pick panoramas on each side and yaw straight at it.
+- **Read fine details by enlarging a crop** with PIL before relying on them. Don't guess at numbers or
+  names. If text can't be read, leave a blank and say what to fill in.
 
 Keep going until you can answer these. Use contact sheets to scan, then open the best views at
 full size:
@@ -66,6 +73,8 @@ before modeling is what keeps a kit coherent.
 - **Parts:** panels (split tabs) and features (loose fit), with what each feature adds in depth.
 - **Colors and plates:** filaments sampled from the photos, and what goes on each plate.
 - **Left out**, and anything **invented**.
+- **Names and marks:** a business name or a railroad's logo may be someone's trademark. Modeling it
+  is usually fine for a personal kit, but say so in the report if it's going to be shared or sold.
 
 ## 3. Build it
 
