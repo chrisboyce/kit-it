@@ -2,10 +2,14 @@
 color previews, 3MF (single and multi-material) and STL."""
 
 import copy
+import json
 import shutil
 import socket
 import subprocess
+import uuid
+import zipfile
 from pathlib import Path
+from xml.sax.saxutils import escape
 
 from build123d import ExportSVG, LineType, Mesher, Unit, Vector, export_stl
 
@@ -85,39 +89,101 @@ def _rgb(hexcolor):
     return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
 
 
-def export_color_3mf(regions, path: Path, object_name="kit"):
-    """One 3MF object made of one part per filament.
+# Orca only reads per-part filaments from a project written by Bambu Studio or
+# itself. It rejects tags newer than it is, so this is deliberately old.
+PROJECT_APP = "BambuStudio-01.10.00.00"
+_3MF_NS = ('xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" '
+           'xmlns:p="http://schemas.microsoft.com/3dmanufacturing/production/2015/06" '
+           'xmlns:BambuStudio="http://schemas.bambulab.com/package/2021" '
+           'requiredextensions="p" unit="millimeter" xml:lang="en-US"')
+_3MF_REL = ('<?xml version="1.0" encoding="UTF-8"?>\n'
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n'
+            ' <Relationship Target="{}" Id="rel-1" '
+            'Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/>\n'
+            '</Relationships>\n')
+_3MF_TYPES = ('<?xml version="1.0" encoding="UTF-8"?>\n'
+              '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">\n'
+              ' <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>\n'
+              ' <Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/>\n'
+              '</Types>\n')
+
+
+def export_color_3mf(regions, path: Path, filaments, bed=(220.0, 220.0), object_name="kit"):
+    """One object made of one part per filament, as a slicer project, so it opens
+    with each part already on its own filament (see "Slicing on the U1" in the README).
 
     regions: [(color name, tool number, hex, solid)]. All parts share one
-    coordinate frame, so they stay registered, and each is named "T<n> <color>"
-    with a display color.
-
-    Slicers still need you to set each part's filament once: OrcaSlicer 2.4.2
-    loads this as one object with four named parts, but only honors per-part
-    extruder settings inside its own project format (see README).
+    coordinate frame, so they stay registered, and each is named "T<n> <color>".
+    filaments: hex for T1, T2, ..., including tools with no part on this plate, so
+    a tool number means the same filament in every part name and in the slicer.
+    bed: (x, y). Projects keep positions, so the plate is centered on it.
     """
-    m = Mesher(unit=Unit.MM)
-    model, wrapper = m.model, m.wrapper
-    group = model.AddBaseMaterialGroup()
-    meshes = []
-    for name, tool, hexcolor, solid in regions:
+    parts, lo, hi = [], [float("inf")] * 3, [float("-inf")] * 3
+    for i, (name, tool, _, solid) in enumerate(regions, 1):
         # Mesher has no public "mesh this into my own object" call; these two
         # static helpers are what add_shape() uses internally.
         verts, tris = Mesher._mesh_shape(copy.deepcopy(solid), 0.001, 0.1)
         v3, t3 = Mesher._create_3mf_mesh(verts, tris)
-        mesh = model.AddMeshObject()
-        mesh.SetGeometry(v3, t3)
-        mesh.SetName(f"T{tool} {name}")
-        pid = group.AddMaterial(name, wrapper.RGBAToColor(*_rgb(hexcolor), 255))
-        mesh.SetObjectLevelProperty(group.GetResourceID(), pid)
-        meshes.append(mesh)
-    # Components must come after the meshes they reference.
-    comp = model.AddComponentsObject()
-    comp.SetName(object_name)
-    for mesh in meshes:
-        comp.AddComponent(mesh, wrapper.GetIdentityTransform())
-    model.AddBuildItem(comp, wrapper.GetIdentityTransform())
-    m.write(str(path))
+        coords = [tuple(v.Coordinates) for v in v3]
+        for axis, values in enumerate(zip(*coords)):
+            lo[axis], hi[axis] = min(lo[axis], *values), max(hi[axis], *values)
+        vs = "\n".join(f'<vertex x="{x:.6f}" y="{y:.6f}" z="{z:.6f}"/>' for x, y, z in coords)
+        ts = "\n".join('<triangle v1="{}" v2="{}" v3="{}"/>'.format(*t.Indices) for t in t3)
+        parts.append((i, tool, f"T{tool} {name}",
+                      f'<mesh><vertices>\n{vs}\n</vertices><triangles>\n{ts}\n</triangles></mesh>'))
+
+    meshes = "\n".join(f'  <object id="{i}" p:UUID="{uuid.uuid4()}" type="model">{mesh}</object>'
+                       for i, _, _, mesh in parts)
+    sub = (f'<?xml version="1.0" encoding="UTF-8"?>\n<model {_3MF_NS}>\n'
+           f' <metadata name="BambuStudio:3mfVersion">1</metadata>\n'
+           f' <resources>\n{meshes}\n </resources>\n <build/>\n</model>\n')
+
+    obj = len(parts) + 1
+    comps = "\n".join(f'    <component p:path="/3D/Objects/object_1.model" objectid="{i}" '
+                      f'p:UUID="{uuid.uuid4()}" transform="1 0 0 0 1 0 0 0 1 0 0 0"/>'
+                      for i, *_ in parts)
+    dx, dy = (bed[a] / 2 - (lo[a] + hi[a]) / 2 for a in (0, 1))
+    title = escape(object_name)
+    root = (f'<?xml version="1.0" encoding="UTF-8"?>\n<model {_3MF_NS}>\n'
+            f' <metadata name="Application">{PROJECT_APP}</metadata>\n'
+            f' <metadata name="BambuStudio:3mfVersion">1</metadata>\n'
+            f' <metadata name="Title">{title}</metadata>\n'
+            f' <resources>\n  <object id="{obj}" p:UUID="{uuid.uuid4()}" type="model">\n'
+            f'   <components>\n{comps}\n   </components>\n  </object>\n </resources>\n'
+            f' <build p:UUID="{uuid.uuid4()}">\n'
+            f'  <item objectid="{obj}" p:UUID="{uuid.uuid4()}" '
+            f'transform="1 0 0 0 1 0 0 0 1 {dx:.4f} {dy:.4f} {-lo[2]:.4f}" printable="1"/>\n'
+            f' </build>\n</model>\n')
+
+    part_cfg = "\n".join(
+        f'    <part id="{i}" subtype="normal_part">\n'
+        f'      <metadata key="name" value="{escape(label)}"/>\n'
+        f'      <metadata key="matrix" value="1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1"/>\n'
+        f'      <metadata key="extruder" value="{tool}"/>\n'
+        f'    </part>' for i, tool, label, _ in parts)
+    # Without the model_instance, the slicer treats the plate as empty.
+    settings = (f'<?xml version="1.0" encoding="UTF-8"?>\n<config>\n  <object id="{obj}">\n'
+                f'    <metadata key="name" value="{title}"/>\n{part_cfg}\n  </object>\n'
+                f'  <plate>\n    <metadata key="plater_id" value="1"/>\n'
+                f'    <metadata key="plater_name" value="{title}"/>\n'
+                f'    <metadata key="locked" value="false"/>\n'
+                f'    <model_instance>\n      <metadata key="object_id" value="{obj}"/>\n'
+                f'      <metadata key="instance_id" value="0"/>\n'
+                f'      <metadata key="identify_id" value="{1000 + obj}"/>\n    </model_instance>\n'
+                f'  </plate>\n  <assemble>\n  </assemble>\n</config>\n')
+
+    # Only the filament list: the printer and print settings stay the slicer's own.
+    project = {"filament_colour": [h.upper() for h in filaments],
+               "filament_type": ["PLA"] * len(filaments)}
+
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("[Content_Types].xml", _3MF_TYPES)
+        z.writestr("_rels/.rels", _3MF_REL.format("/3D/3dmodel.model"))
+        z.writestr("3D/3dmodel.model", root)
+        z.writestr("3D/_rels/3dmodel.model.rels", _3MF_REL.format("/3D/Objects/object_1.model"))
+        z.writestr("3D/Objects/object_1.model", sub)
+        z.writestr("Metadata/model_settings.config", settings)
+        z.writestr("Metadata/project_settings.config", json.dumps(project, indent=1))
 
 
 def export_color_stls(regions, stem: Path):

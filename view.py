@@ -100,7 +100,8 @@ def run_plate(items, p, out: Path, stem: str, export=True, tools=None):
 
     regions = [(c, t, p.hex(c), by_color[c]) for t, c in tools]
     if export:
-        render.export_color_3mf(regions, out / f"{stem}.3mf", object_name=stem)
+        render.export_color_3mf(regions, out / f"{stem}.3mf", [p.hex(c) for c in loaded],
+                                (p.bed_x, p.bed_y), object_name=stem)
         render.export_mesh(plate, out / stem, formats=("stl",))
         stls = render.export_color_stls(regions, out / stem)
         print(f"  wrote {out / (stem + '.3mf')} ({len(regions)} colors), {out / (stem + '.stl')}, "

@@ -116,27 +116,33 @@ tool. A kit can use more colors than the printer has tools by naming its plates
 (`sprue.Plate`: parts, the color in each tool, sprue and label colors); the
 Creative Corner does. Without named plates, the palette is T1..T4.
 
-**Slicing on the U1:** open `out/kit.3mf`. It loads as **one object with four
-parts** named `T1 brick`, `T2 trim`, `T3 concrete` and `T4 accent`. In the
-object list, set each part's filament to its tool number (four clicks), then
-save as a project if you'll reprint it. Prefer the 3MF over the per-color STLs:
-when OrcaSlicer combines separate STLs into one object it can re-center each
-file, and the colors no longer line up.
+**Slicing on the U1:** open the plate's 3MF in Snapmaker Orca. It opens as **one
+object with one part per filament** (`T1 brick`, `T2 trim`, ...), each part already
+on its own filament, with the plate centered on the bed. Your printer and print
+settings stay as they are, so you only match the listed filaments to your spools.
+Prefer the 3MF over the per-color STLs: when OrcaSlicer combines separate STLs into
+one object it can re-center each file, and the colors no longer line up.
 
-Why it isn't automatic yet (tested headless against OrcaSlicer 2.4.2, the base
-of Snapmaker Orca, with its Snapmaker U1 profile):
-* Orca honors per-part extruder settings only inside its own project 3MF.
-  For any other 3MF it logs "3mf from other vendor" and ignores them. Its
-  project format also requires an embedded full printer/process config
-  (`project_settings.config`); without one the CLI segfaults.
-* The PrusaSlicer-style per-volume extruder config loads but is ignored too.
-* 3MF color groups are read, but the CLI doesn't map them to filaments. The
-  GUI may offer a color-mapping dialog; that's untested.
-* The Orca CLI also segfaults with 4 filaments on the U1 profile, even for
-  plain STLs, so a full 4-color U1 slice couldn't be run headless.
-* Likely fix: save one real project from Snapmaker Orca (U1 + your 4
-  filaments) and use its `project_settings.config` as a template, so
-  `kit.3mf` opens as a native project with tools pre-assigned.
+**How the 3MF gets its filaments** (`render.export_color_3mf`). A plain 3MF with
+color groups shows no filaments in Orca, so ours is laid out like a slicer project.
+A Bambu Studio project from MakerWorld was the reference. What matters:
+
+| piece | why |
+|---|---|
+| `Application` tag in `3D/3dmodel.model` | Orca reads per-part filaments only from Bambu or Orca projects; otherwise it logs "3mf from other vendor". Must be no newer than the slicer: Orca 2.4.2 rejects `02.08.02.61`, so we use `BambuStudio-01.10.00.00` |
+| meshes in `3D/Objects/object_1.model`, joined by components in the root model | the same layout the reference project uses |
+| `extruder` per part in `Metadata/model_settings.config` | this is the filament assignment |
+| `model_instance` in that file's `<plate>` | without it, slicing a plate reports the file as empty |
+| `filament_colour`, `filament_type` in `Metadata/project_settings.config` | the filament list, with a slot for every tool, even one this plate doesn't use |
+| build item translated to the bed center | our meshes are built from the origin, so this puts the plate on the bed |
+
+Leave printer and process settings out of `project_settings.config`: the reference
+project's 578 keys are tied to its P1S, and without them Snapmaker Orca keeps yours.
+3MF color groups don't help, so they aren't written.
+
+Confirmed in the Snapmaker Orca app with a balcony plate. **The Orca CLI can't check
+this:** 2.4.2 segfaults on these projects, with or without the U1 profiles, and it
+has segfaulted on 4-filament U1 jobs even from plain STLs. Check changes in the app.
 
 ## The joints
 
@@ -269,7 +275,7 @@ up as in "Slicing on the U1", and its part names give that plate's tool numbers.
 | `kit_plate5_green` | **smoke** | **terra** | iron | **moss** | backers, plants, Main St rails, corner rails |
 
 Printing in this order, only the tools in bold need a new spool. Plate 1 doesn't
-use T2, so its 3MF has no T2 part. Base B prints a quarter turn round, as a long
+use T2, so its 3MF has no T2 part, though stone still fills filament slot 2. Base B prints a quarter turn round, as a long
 strip above base A.
 
 **Plates:** all within the 210 mm usable bed, ~218 cm³ in total
@@ -401,5 +407,4 @@ drew the long facade triangles in the wrong order.
 * Awning with posts (deferred; the cross-lap prop proves the construction for
   the post).
 * The other Colfax facades (Creative Corner is the first, above).
-* Pre-assigned toolheads in the 3MF (needs a Snapmaker Orca project as a template).
 * Layered/laminated facades.
