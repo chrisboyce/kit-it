@@ -26,6 +26,8 @@ just                 # = just both coupon  -> everything into ./out
 | `just coupon`| `out/coupon.3mf`, `out/coupon.stl`, `out/coupon_{top,iso}.png` |
 | `just viewer`| browser OCP viewer on :3939 |
 | `just show`  | checks + send the kit to the viewer, no file output |
+| `just showcase` | every kit together in the viewer, one row each: assembled model, then its plates |
+| `just both --kit all` | every kit's files, plus that scene as `out/showcase_color.png` |
 
 **Showing a kit again is instant.** A passing build saves what the viewer needs in `out/<kit>/.cache/`,
 so while the source and parameters are unchanged, `view.py` skips the build and sends that

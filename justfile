@@ -38,6 +38,10 @@ coupon *ARGS:
 show *ARGS:
     {{py}} view.py --mode both --no-export {{ARGS}}
 
+# every kit together, built and flat, in the open viewer
+showcase *ARGS:
+    {{py}} view.py --kit all --mode both --no-export {{ARGS}}
+
 # The viewer doesn't keep models for browser tabs opened later, so open the URL first.
 # browser OCP viewer on :3939 (open the page, then `just show`)
 viewer:
