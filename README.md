@@ -20,7 +20,7 @@ just                 # = just both coupon  -> everything into ./out
 | `just built` | interference check + `out/built_{iso,front,top}.{svg,png}` |
 | `just print` | sprue + color checks, `out/kit.3mf` (4-color), `out/kit.stl`, `out/kit_T*_*.stl`, `out/plate_{top,color}.png` |
 | `just both`  | both of the above + `out/both_iso.png` (model beside its plate) |
-| `just corner`| the Creative Corner kit, built + 5 plates, into `out/corner/` (~9 min) |
+| `just corner`| the Creative Corner kit, built + 5 plates, into `out/corner/` (~13 min) |
 | `just coupon`| `out/coupon.3mf`, `out/coupon.stl`, `out/coupon_{top,iso}.png` |
 | `just viewer`| browser OCP viewer on :3939 |
 | `just show`  | checks + send the kit to the viewer, no file output |
@@ -258,13 +258,13 @@ up as in "Slicing on the U1", and its part names give that plate's tool numbers.
 | filament | used for |
 |---|---|
 | sage | walls |
-| iron | posts, outriggers, rails, furniture; pilasters, piers, belt courses, cornice; bulkheads; overhang top; basket hangers |
-| stone | window frames, Main St panel, screen doors, hanging sign |
-| rust | doors, storefront frame, deck and overhang edges, coping |
-| concrete | sidewalk, deck tops |
+| iron | posts, outriggers, rails, furniture frames; pilasters, piers, belt courses, cornice; bulkheads; overhang top; basket hangers. Accents: window-sill shadows, door panels, roof seams, sign lettering, utility covers, foliage shadows, pot bands, display shelves |
+| stone | window frames, Main St panel, screen doors, hanging sign. Accents: curb edge, shop door frame, post plinths and collars, sign-band pinstripe |
+| rust | doors, storefront frame, deck and overhang edges, coping. Accents: shutters, bulkhead panels, Main St pinstripe, doormats, cornice edge, chair seats and backs, table top |
+| concrete | sidewalk, deck tops, overhang roof seams |
 | smoke | window backers. Load a translucent filament instead if you'll light it from inside |
-| terra | planters, pots, baskets |
-| moss | foliage |
+| terra | planters, pots, baskets; window blinds and display wares on the backers |
+| moss | foliage; little plants in the shop displays |
 
 | plate | T1 | T2 | T3 | T4 | parts |
 |---|---|---|---|---|---|
@@ -274,9 +274,20 @@ up as in "Slicing on the U1", and its part names give that plate's tool numbers.
 | `kit_plate4_main` | sage | stone | iron | rust | Main St and west walls, post, upper posts, outriggers, furniture |
 | `kit_plate5_green` | **smoke** | **terra** | iron | **moss** | backers, plants, Main St rails, corner rails |
 
-Printing in this order, only the tools in bold need a new spool. Plate 1 doesn't
-use T2, so its 3MF has no T2 part, though stone still fills filament slot 2. Base B prints a quarter turn round, as a long
-strip above base A.
+Printing in this order, only the tools in bold need a new spool. Base B prints a
+quarter turn round, as a long strip above base A.
+
+**Accents** are paint only, so they change no geometry: fits and joints stay as they
+were. Each one reuses a color already on its plate, and the rule that makes it work is:
+* A part made for several plates can only use colors all of them load. Posts land on
+  three plates, so their accent is stone. Rails land on the church and green plates,
+  which share only iron, so they stay plain.
+* Sheets seen from both sides (plants, posts, furniture, the hanging sign) are painted
+  through; panels seen from the front get `color_depth` on that face.
+* Painted lines stay at least `accent_w` (0.8 mm, two nozzle widths) wide. Foliage
+  shadows are half discs because their square corners leave no sliver tips to drop.
+* Details are stylized where type or fine lines can't print: signs carry word blocks,
+  not letters. The shutter color, doormats, wares and blinds are invented, not from the photos.
 
 **Plates:** all within the 210 mm usable bed, ~218 cm³ in total
 (about 270 g if it were solid; not sliced yet, so no time estimate).

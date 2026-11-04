@@ -59,6 +59,8 @@ class CornerParams(Params):
     color_glass: str = "smoke"
     color_planter: str = "terra"
     color_shrub: str = "moss"
+    color_shade: str = "iron"          # shadows in the foliage
+    accent_w: float = 0.8              # thinnest painted line: two nozzle widths
     color_sprue: str = "stone"         # each Plate sets its own sprue and label color
     color_label: str = "iron"
     color_post: str = "iron"           # posts, outriggers, railings, furniture
@@ -357,6 +359,11 @@ class Face:
     def paint(self, color, x0, x1, y0, y1):
         self.paints.append((color, box(x0, x1, y0, y1, self.z_paint, self.t + 10)))
 
+    def paint_all(self, color, rects):
+        """Many small patches as one paint: one boolean per patch is slow on a wall."""
+        vols = [box(x0, x1, y0, y1, self.z_paint, self.t + 10) for x0, x1, y0, y1 in rects]
+        self.paints.append((color, vols[0].fuse(*vols[1:]) if len(vols) > 1 else vols[0]))
+
     def pocket(self, x0, x1, y0, y1, depth, color=None):
         d = self.p.zq(depth)
         self.cuts.append(box(x0, x1, y0, y1, self.t - d, self.t + 10))
@@ -372,9 +379,15 @@ class Face:
     def hole(self, x0, x1, y0, y1):
         self.cuts.append(box(x0, x1, y0, y1, -EPS, self.t + 10))
 
-    def window(self, x0, x1, y0, y1, bar_at=None):
-        """Open window: raised stone frame, sill, optional full-depth bar."""
+    def window(self, x0, x1, y0, y1, bar_at=None, floor=0.0):
+        """Open window: raised stone frame, the shadow under its sill, optional
+        full-depth bar. floor: how deep a pocket the window sits in."""
         p, f = self.p, self.p.trim_w
+        rect = (x0 - f, x1 + f, y0 - f - p.accent_w, y0 - f)
+        if floor:
+            self.floor(p.color_band, *rect, floor)
+        else:
+            self.paint(p.color_band, *rect)
         self.raised(x0 - f, x1 + f, y0 - f, y1 + f, color=p.color_trim)
         self.hole(x0, x1, y0, y1)
         if bar_at is not None:
@@ -467,6 +480,8 @@ def wall_church(p) -> Piece:
     f.raised(pav - 4, pav, 0, dz - 1, color=band)
     f.raised(0, pav, dz - 1, dz + 4, color=band)
     f.door(9, 19.5, 0, ft(7), screen=False)
+    f.floor(band, 10.8, 17.7, 3, 12.5, p.door_recess)
+    f.floor(band, 10.8, 17.7, 14, 22, p.door_recess)
     f.window(20.5, 32, 3.5, ft(7) - 0.5)
     f.window(pav / 2 - 5.5, pav / 2 + 5.5, dz + 8, dz + 26, bar_at=dz + 17)
     f.raised(0, 4, dz + 4, ev, color=band)
@@ -475,10 +490,18 @@ def wall_church(p) -> Piece:
 
     # --- ground floor, one bay each ------------------------------------------
     f.window(c[0] - 18, c[0] - 5, 3.5, 17.5, bar_at=10.5)          # shuttered window
+    f.paint_all(p.color_door, [(c[0] - 22.5, c[0] - 19.2, 2.5, 18.5), (c[0] - 3.8, c[0] - 0.5, 2.5, 18.5)])
     f.door(c[0] + 2, c[0] + 19.5, 0, ft(7), transom=0.0, screen=False)  # the double doors
     f.late.append(box(c[0] + 10.35, c[0] + 11.15, 0, ft(7), tw - p.zq(p.door_recess) - EPS, tw))
     f.paint(p.color_trim, c[0] + 10.35, c[0] + 11.15, 0, ft(7))
+    f.floor(band, c[0] + 3.5, c[0] + 9.2, 3, 12.5, p.door_recess)
+    f.floor(band, c[0] + 12.3, c[0] + 18, 3, 12.5, p.door_recess)
+    f.floor(band, c[0] + 3.5, c[0] + 9.2, 14, 22, p.door_recess)
+    f.floor(band, c[0] + 12.3, c[0] + 18, 14, 22, p.door_recess)
     f.raised(c[0] + 1, c[0] + 20.5, ft(7) + 1, ft(9), color=p.color_trim)  # hall sign
+    sy = (ft(7) + 1 + ft(9)) / 2                                   # its lettering, as word blocks
+    f.paint_all(band, [(c[0] + 3, c[0] + 8, sy - 0.5, sy + 0.5), (c[0] + 9.2, c[0] + 12.2, sy - 0.5, sy + 0.5),
+                       (c[0] + 13.4, c[0] + 18.5, sy - 0.5, sy + 0.5)])
     f.window(c[1] - 9, c[1] + 9, 22.75, 32.75)                     # small high window
     f.window(c[2] - 12, c[2] + 12, 10.5, 32.5)                     # gift shop display
 
@@ -496,10 +519,12 @@ def wall_church(p) -> Piece:
             f.raised(x - 0.4, x + 0.4, y0, ev, h=p.batten_raise)
         x += p.batten_pitch
     # Standing-seam mansard, and the rust coping along the top.
-    x = 3.5
+    x, seams = 3.5, []
     while x < Lc - p.pier_width:
         f.raised(x - 0.4, x + 0.4, ev + 1.6, H - 1.4, h=p.batten_raise)
+        seams.append((x - 0.4, x + 0.4, ev + 1.6, H - 1.4))
         x += p.seam_pitch
+    f.paint_all(band, seams)
     f.raised(0, Lc - p.pier_width + EPS, H - 1.4, H, color=p.color_door)
     f.raised(Lc - p.pier_width, Lc, ev + 1.6, p.pier_z - 1.4, color=band)
     f.raised(Lc - p.pier_width, Lc, p.pier_z - 1.4, p.pier_z, color=p.color_door)
@@ -549,9 +574,13 @@ def wall_main(p) -> Piece:
     ux0, ux1 = pw + 4, W - pw - 4
     uy0, uy1 = dt + 4, 84.0
     f.pocket(ux0, ux1, uy0, uy1, 0.4, color=p.color_trim)
+    # A pinstripe round the panel, like a painted molding.
+    a, b = 0.8, 0.8 + p.accent_w
+    f.paint_all(p.color_door, [(ux0 - b, ux1 + b, uy0 - b, uy0 - a), (ux0 - b, ux1 + b, uy1 + a, uy1 + b),
+                               (ux0 - b, ux0 - a, uy0 - b, uy1 + b), (ux1 + a, ux1 + b, uy0 - b, uy1 + b)])
     win_w, win_h = 11.0, 23.0
     for cx in (W * 0.35, W * 0.65):
-        f.window(cx - win_w / 2, cx + win_w / 2, dt + 7.5, dt + 7.5 + win_h, bar_at=dt + 7.5 + win_h / 2)
+        f.window(cx - win_w / 2, cx + win_w / 2, dt + 7.5, dt + 7.5 + win_h, bar_at=dt + 7.5 + win_h / 2, floor=0.4)
     # Stripe under the cornice, and the coping.
     f.pocket(pw, W - pw, 88.5, 90.5, 0.2, color=p.color_trim)
     f.raised(pw - EPS, W - pw + EPS, top - 1.2, top, color=p.color_door)
@@ -624,6 +653,24 @@ def _base_slab(p, x0, x1, y0, y1, corner=False):
     return body - slab_top
 
 
+def _curb_edge(p, x0, x1, y0, y1, corner=False):
+    """Pale strip along the top of the curb, following the rounded corner."""
+    st, w, tb = p.street_strip, 1.2, p.base_thickness
+    z0 = tb - p.zq(p.color_depth)
+    if not corner:
+        return box(x0, x1, st, st + w, z0, tb + 1)
+    R = 14.0
+    cx, cy = x1 - R, y0 + R
+    arc = Pos(cx, cy, z0) * extrude(Circle(R - st) - Circle(R - st - w), tb + 1 - z0, dir=UP)
+    arc &= box(cx, x1 + 1, y0 - 1, cy, z0, tb + 1)
+    return arc + box(x0, cx, st, st + w, z0, tb + 1) + box(x1 - st - w, x1 - st, cy, y1, z0, tb + 1)
+
+
+def _utility_cover(p, x, y, r):
+    z0 = p.base_thickness - p.zq(p.color_depth)
+    return Pos(x, y, z0) * extrude(Circle(r), p.zq(p.color_depth) + 1, dir=UP)
+
+
 def _sidewalk_joints(p, x0, x1, y1, step, cuts):
     jd, jw = p.zq(p.joint_depth), p.joint_width
     tb = p.base_thickness
@@ -680,7 +727,11 @@ def base_a(p) -> Piece:
         adds.append(t)
         cuts.append(s)
     body = body.fuse(*adds).cut(*cuts)
-    return Piece(body, [], [(0.3 * W, D, "+y"), (0.7 * W, D, "+y")], color=p.color_base)
+    z0 = tb - p.zq(p.color_depth)
+    paints = [(p.color_trim, _curb_edge(p, 0, W, 0, D)),
+              (p.color_band, _utility_cover(p, 62.0, 13.5, 2.6)),
+              (p.color_band, box(148.0, 153.0, 24.0, 28.0, z0, tb + 1))]
+    return Piece(body, [], [(0.3 * W, D, "+y"), (0.7 * W, D, "+y")], color=p.color_base, paints=paints)
 
 
 BASE_B_PRINT = Rot(0, 0, 90)
@@ -716,7 +767,9 @@ def base_b(p) -> Piece:
     # Modeled in world coordinates, then printed a quarter turn round so it's a
     # long low strip on the plate (see _pose_base_b). Gates on the seam edge.
     body = BASE_B_PRINT * body.cut(*cuts)
-    return Piece(body, [], [(-y, x0, "-y") for y in (30.0, 118.0)], color=p.color_base)
+    paints = [(p.color_trim, BASE_B_PRINT * _curb_edge(p, x0, x1, 0, D, corner=True)),
+              (p.color_band, BASE_B_PRINT * _utility_cover(p, x1 - 13.0, 62.0, 2.6))]
+    return Piece(body, [], [(-y, x0, "-y") for y in (30.0, 118.0)], color=p.color_base, paints=paints)
 
 
 # ---------------------------------------------------------------------------
@@ -745,6 +798,14 @@ def storefront(p) -> Piece:
         x = margin + i * (w + 1)
         cuts.append(box(x, x + w, band, H - 1.2, -EPS, t + EPS))
     paints.append((p.color_bulkhead, box(-1, W + 1, -1, sill, -1, t + 10)))
+    # Panels in the bulkhead, and a pinstripe along the sign band.
+    z = t - p.zq(p.color_depth)
+    for x0, x1 in ((margin, e0 - 3.4), (e1 + 3.4, W - margin)):
+        m = (x0 + x1) / 2
+        paints.append((p.color_door, box(x0, m - 0.8, 1.2, sill - 1.2, z, t + 10)))
+        paints.append((p.color_door, box(m + 0.8, x1, 1.2, sill - 1.2, z, t + 10)))
+    mid = (head + band) / 2
+    paints.append((p.color_trim, box(margin, W - margin, mid - p.accent_w / 2, mid + p.accent_w / 2, z, t + 10)))
     cuts += _peg_pockets(p, _pegs_store(p))
     # Slots for the cheeks' front tabs.
     cl = p.prop_clearance
@@ -776,8 +837,11 @@ def door_panel(p) -> Piece:
         adds.append(tab(W / 2 + dx, 0, 3.0, p.post_tab_len, t, p.lead_in))
     cuts += _peg_pockets(p, _pegs_door(p))
     body = body.fuse(*adds).cut(*cuts)
+    # A pale frame round the glass: the box's middle is the door's opening, so only a ring prints.
+    f, z = p.accent_w, t - p.zq(p.color_depth)
     return Piece(body, [], [(1.0, 0, "-y"), (W - 1.0, 0, "-y")], color=p.color_door,
-                 paints=[(p.color_bulkhead, box(x0, x1, 2.0, ft(1.2), -1, t + 10))])
+                 paints=[(p.color_bulkhead, box(x0, x1, 2.0, ft(1.2), -1, t + 10)),
+                         (p.color_trim, box(x0 - f, x1 + f, ft(1.2) - f, ft(6.6) + f, z, t + 10))])
 
 
 def entry_cheek(p) -> Piece:
@@ -852,9 +916,14 @@ def deck_church(p) -> Piece:
         cuts.append(_rail_slot(p, x - x0, y - y0, t))
     body = body.fuse(*adds).cut(*cuts)
     # A concrete walking surface inside a rust edge; it runs on across the seam.
-    top = box(1.0, L, 1.0, D, t - p.zq(p.color_depth), t + 1)
+    z = t - p.zq(p.color_depth)
+    top = box(1.0, L, 1.0, D, z, t + 1)
+    # A doormat at each of the three balcony doors.
+    c = p.bay_centers
+    mats = [(p.color_door, box(cx - x0 - 3.5, cx - x0 + 3.5, D - 4.0, D - 1.0, z, t + 1))
+            for cx in (c[0] - 7.25, c[1] - 0.25, c[2] - 0.25)]
     return Piece(body, [], [(0.25 * L, D, "+y"), (0.75 * L, D, "+y")], color=p.color_door,
-                 paints=[(p.color_deck_top, top)])
+                 paints=[(p.color_deck_top, top), *mats])
 
 
 def _furniture_holes(p, tx, ty, t):
@@ -929,6 +998,14 @@ def _facets_local(p):
     return out
 
 
+def _steps(start, stop, step):
+    out, x = [], start
+    while x < stop:
+        out.append(x)
+        x += step
+    return out
+
+
 def overhang(p) -> Piece:
     """Roof over the Church St balcony. Local: x east, y toward the wall, z up."""
     x0, x1, D, t = p.pavilion + 1.0, p.church_panel + 2.5, p.overhang_depth, p.overhang_t
@@ -948,9 +1025,12 @@ def overhang(p) -> Piece:
         cuts.append(box(x - x0 - p.rail_tab_w / 2 - cl, x - x0 + p.rail_tab_w / 2 + cl,
                         yl - p.furniture_t / 2 - cl, yl + p.furniture_t / 2 + cl, -EPS, t + EPS))
     body = body.fuse(*adds).cut(*cuts)
-    top = box(1.0, L - 1.0, 1.0, D, t - p.zq(p.color_depth), t + 1)
+    z = t - p.zq(p.color_depth)
+    top = box(1.0, L - 1.0, 1.0, D, z, t + 1)
+    w = p.accent_w / 2
+    seams = [box(x - w, x + w, 1.0, D, z, t + 1) for x in _steps(10.0, L - 2.0, 14.0)]
     return Piece(body, [], [(0.25 * L, D, "+y"), (0.75 * L, D, "+y")], color=p.color_door,
-                 paints=[(p.color_roof, top)])
+                 paints=[(p.color_roof, top), (p.color_base, seams[0].fuse(*seams[1:]))])
 
 
 def _spandrel_cuts(half, h, top, t):
@@ -976,6 +1056,13 @@ def _head(half, h, top, t):
     return solids
 
 
+def _post_accents(p, head_y, t):
+    """A pale plinth and a collar under the brackets, through the post, which shows both faces.
+    Posts land on three plates, so this has to be a color all of them load."""
+    return [(p.color_trim, box(-5, 5, 0, p.post_foot_h, -1, t + 1)),
+            (p.color_trim, box(-5, 5, head_y - 1.2, head_y, -1, t + 1))]
+
+
 def post_lower(p) -> Piece:
     """Sidewalk to balcony. Crosses an outrigger at its head, and carries the deck."""
     H, t, w = p.deck_z, p.post_t, p.post_w
@@ -989,7 +1076,8 @@ def post_lower(p) -> Piece:
     cuts = _spandrel_cuts(p.head_half, p.head_h, H, t)
     cuts.append(box(-p.sheet_t / 2 - cl, p.sheet_t / 2 + cl, H - p.outrigger_cross, H + EPS, -EPS, t + EPS))
     body = body.cut(*cuts)
-    return Piece(body, [], [(0, -p.post_tab_len, "-y")], color=p.color_post)
+    return Piece(body, [], [(0, -p.post_tab_len, "-y")], color=p.color_post,
+                 paints=_post_accents(p, H - p.head_h, t))
 
 
 def post_upper(p) -> Piece:
@@ -1001,7 +1089,8 @@ def post_upper(p) -> Piece:
     adds.append(tab(0, 0, w, p.deck_t - 0.1, t, 0.3))
     adds.append(tab(0, H, w, p.overhang_t - 0.1, t, 0.3, "+y"))
     body = body.fuse(*adds).cut(*_spandrel_cuts(half, h, H, t))
-    return Piece(body, [], [(0, -(p.deck_t - 0.1), "-y")], color=p.color_post)
+    return Piece(body, [], [(0, -(p.deck_t - 0.1), "-y")], color=p.color_post,
+                 paints=_post_accents(p, H - h, t))
 
 
 def outrigger(p) -> Piece:
@@ -1061,7 +1150,8 @@ def cornice(p) -> Piece:
     adds = [tab(x, D, 6.0, p.zq(p.deck_tab_pocket) - 0.2, t, p.lead_in, "+y")
             for x in (-0.2 * p.main_panel, 0.2 * p.main_panel)]
     body = body.fuse(*adds)
-    return Piece(body, [], [(0, D, "+y")], color=p.color_band)
+    return Piece(body, [], [(0, D, "+y")], color=p.color_band,
+                 paints=[(p.color_door, box(-L / 2 - 1, L / 2 + 1, -1, p.accent_w, -1, t + 1))])
 
 
 def hanging_sign(p) -> Piece:
@@ -1074,7 +1164,10 @@ def hanging_sign(p) -> Piece:
     body += tab(0, 0, p.rail_tab_w, p.deck_t - 0.2, t, p.lead_in, "+y")
     inner = extrude(Pos(0, cy) * Ellipse(a - 0.8, b - 0.8), t + 1, dir=UP)
     rim = box(-a - 1, a + 1, cy - b - 1, cy + b + 1, -1, t + 1) - inner
-    return Piece(body, [], [(0, p.deck_t - 0.2, "+y")], color=p.color_sign, paints=[(p.color_door, rim)])
+    # Lettering as word blocks: real type would be thinner than a nozzle at this size.
+    words = [(p.color_band, box(x0, x1, cy + y0, cy + y0 + 1.0, -1, t + 1))
+             for x0, x1, y0 in ((-3.8, -0.4, 0.5), (0.4, 3.8, 0.5), (-2.6, 2.6, -1.5))]
+    return Piece(body, [], [(0, p.deck_t - 0.2, "+y")], color=p.color_sign, paints=[(p.color_door, rim), *words])
 
 
 def table_top(p) -> Piece:
@@ -1082,7 +1175,8 @@ def table_top(p) -> Piece:
     r = 4.6
     body = extrude(Circle(r), t, dir=UP)
     body -= box(-0.8 - cl, 0.8 + cl, -t / 2 - cl, t / 2 + cl, -EPS, t + EPS)
-    return Piece(body, [], [(0, -r, "-y")], color=p.color_post)
+    top = Pos(0, 0, -1) * extrude(Circle(r - p.accent_w), t + 2, dir=UP)
+    return Piece(body, [], [(0, -r, "-y")], color=p.color_post, paints=[(p.color_door, top)])
 
 
 def table_a(p) -> Piece:
@@ -1110,7 +1204,8 @@ def chair_side(p) -> Piece:
     body = box(-2.5, -1.7, 0, 5.6, 0, t) + box(-2.5, s, 4.4, 5.6, 0, t) + box(s - EPS, 2.5, 5.0, 5.6, 0, t)
     body += box(1.0, 2.5, 5.0, 10.5, 0, t)
     body += tab(-2.1, 0, 0.8, p.deck_t - 0.2, t, 0.2)
-    return Piece(body, [], [(-2.1, -(p.deck_t - 0.2), "-y")], color=p.color_post)
+    return Piece(body, [], [(-2.1, -(p.deck_t - 0.2), "-y")], color=p.color_post,
+                 paints=[(p.color_door, box(-3, 3, 4.4, 5.6, -1, t + 1))])
 
 
 def chair_back(p) -> Piece:
@@ -1119,13 +1214,38 @@ def chair_back(p) -> Piece:
     body = box(-2.3, -1.5, 0, 10.5, 0, t) + box(1.5, 2.3, 0, 10.5, 0, t) + box(-2.3, 2.3, 4.4, 5.2, 0, t)
     body += box(-2.3, 2.3, 7.8, 10.5, 0, t)
     body -= box(-t / 2 - cl, t / 2 + cl, 5.0, 10.5 + EPS, -EPS, t + EPS)
-    return Piece(body, [], [(-1.9, 0, "-y")], color=p.color_post)
+    return Piece(body, [], [(-1.9, 0, "-y")], color=p.color_post,
+                 paints=[(p.color_door, box(-3, 3, 7.8, 11, -1, t + 1))])
 
 
 # ---------------------------------------------------------------------------
 # Window backers: dark sheets behind the openings, in their hosts' local frames
 # ---------------------------------------------------------------------------
-def _backer(p, x0, x1, y0, y1, pegs, gate_xs, cuts=()) -> Piece:
+def _blind(p, x0, x1, y0, y1, drop):
+    """A blind pulled part way down a window."""
+    t = p.backer_t
+    return (p.color_planter, box(x0 - 1, x1 + 1, y1 - drop, y1 + 1, t - p.zq(p.color_depth), t))
+
+
+def _display(p, x0, x1, y0, y1):
+    """Shelves of wares for a shop window: pots and little plants, on the sheet's front."""
+    t = p.backer_t
+    z = t - p.zq(p.color_depth)
+    out = []
+    n = max(2, round((y1 - y0) / 7.0))
+    for i in range(n):
+        y = y0 + 1.0 + i * (y1 - y0 - 1.0) / n
+        out.append((p.color_post, box(x0, x1, y, y + p.accent_w, z, t)))
+        for j, x in enumerate(_steps(x0 + 1.6 + (i % 2) * 1.5, x1 - 1.6, 3.4)):
+            if (i + j) % 2:
+                out.append((p.color_planter, box(x - 0.9, x + 0.9, y + p.accent_w, y + p.accent_w + 2.4, z, t)))
+            else:
+                dome = Pos(x, y + p.accent_w, z) * extrude(Circle(1.2), t - z, dir=UP)
+                out.append((p.color_shrub, dome & box(x - 2, x + 2, y + p.accent_w, y + 3, z, t)))
+    return out
+
+
+def _backer(p, x0, x1, y0, y1, pegs, gate_xs, cuts=(), paints=()) -> Piece:
     """Sheet with pegs on its front (z = t, against the host's back). The peg
     outline does the locating; their height only has to clear the pocket's floor."""
     t, w = p.backer_t, p.backer_peg / 2
@@ -1134,18 +1254,23 @@ def _backer(p, x0, x1, y0, y1, pegs, gate_xs, cuts=()) -> Piece:
         body = body.cut(*cuts)
     h = p.zq(p.backer_peg_h)
     body = body.fuse(*[box(x - w, x + w, y - w, y + w, t - EPS, t + h) for x, y, *_ in _peg_grid(pegs)])
-    return Piece(body, [], [(x, y0, "-y") for x in gate_xs], color=p.color_glass)
+    return Piece(body, [], [(x, y0, "-y") for x in gate_xs], color=p.color_glass, paints=list(paints))
 
 
 def backer_church(p) -> Piece:
     """Stands on the floor ring behind the Church St wall: every window and transom."""
     x0, x1 = 13.0, 168.0
-    return _backer(p, x0, x1, 0.0, 76.0, _pegs_church(p), (x0 + 20, x1 - 20))
+    c, dz, dt, pav = p.bay_centers, p.deck_z, p.deck_top, p.pavilion
+    paints = [*_display(p, c[2] - 12, c[2] + 12, 10.5, 32.5),        # the gift shop
+              _blind(p, pav / 2 - 5.5, pav / 2 + 5.5, dz + 8, dz + 26, 5.0),
+              _blind(p, c[0] + 6, c[0] + 16, dt + 10, dt + 23, 4.5)]
+    return _backer(p, x0, x1, 0.0, 76.0, _pegs_church(p), (x0 + 20, x1 - 20), paints=paints)
 
 
 def backer_main(p) -> Piece:
-    W = p.main_panel
-    return _backer(p, 21.0, W - 21.0, 50.0, 78.0, _pegs_main(p), (30.0, W - 30.0))
+    W, dt = p.main_panel, p.deck_top
+    paints = [_blind(p, cx - 5.5, cx + 5.5, dt + 7.5, dt + 30.5, 6.0) for cx in (W * 0.35, W * 0.65)]
+    return _backer(p, 21.0, W - 21.0, 50.0, 78.0, _pegs_main(p), (30.0, W - 30.0), paints=paints)
 
 
 def backer_store(p) -> Piece:
@@ -1154,7 +1279,9 @@ def backer_store(p) -> Piece:
     mid = W * p.entry_center_local
     half = max(abs(d) for d in p.cheek_dy) + p.sheet_t / 2 + 0.15
     notch = box(mid - half, mid + half, 0.0, p.store_door_top + 0.2, -EPS, p.backer_t + EPS)
-    return _backer(p, 1.0, W - 1.0, 2.0, H - 0.5, _pegs_store(p), (6.0, W - 6.0), cuts=(notch,))
+    e0, e1 = mid - p.entry_width / 2, mid + p.entry_width / 2
+    paints = [d for x0, x1 in ((3.0, e0 - 3.4), (e1 + 3.4, W - 3.0)) for d in _display(p, x0, x1, ft(2), ft(8))]
+    return _backer(p, 1.0, W - 1.0, 2.0, H - 0.5, _pegs_store(p), (6.0, W - 6.0), cuts=(notch,), paints=paints)
 
 
 def backer_door(p) -> Piece:
@@ -1174,6 +1301,24 @@ def _foliage(lobes, t):
     return [extrude(Pos(x, y) * Circle(r), t, dir=UP) for x, y, r in lobes]
 
 
+def _half_disc(x, y, r, t):
+    """Flat side up: the shadow under a clump of leaves. Runs through the sheet, since
+    both faces of a plant show. Square corners, so it has no slivers for a slicer to lose."""
+    disc = extrude(Pos(x, y) * Circle(r), t + 2, dir=UP)
+    return Pos(0, 0, -1) * disc & box(x - r - 1, x + r + 1, y - r - 1, y, -1, t + 1)
+
+
+def _shadows(lobes, t, clear=0.0, keep=2.0):
+    """A half disc low in each outer lobe. `clear`: stay this far from x = 0, where the
+    cross-lap slot would cut one up. Each is at least `keep` wide, two nozzle widths+."""
+    out = []
+    for x, y, r in lobes:
+        rs = max(keep / 2, 0.55 * r)
+        side = 1 if x >= 0 else -1
+        out.append(_half_disc(side * max(abs(x), clear + rs + 0.1), y - 0.1 * r, rs, t))
+    return out
+
+
 def _plant(p, half, pot_h, H, lobes, slot_from_top) -> tuple:
     """(body, paints) of one sheet of a cross-lapped plant in a tapered pot."""
     t, cl = p.prop_thickness, p.prop_clearance
@@ -1187,7 +1332,10 @@ def _plant(p, half, pot_h, H, lobes, slot_from_top) -> tuple:
         body -= box(-s, s, H / 2, H + half, -EPS, t + EPS)
     else:
         body -= box(-s, s, -EPS, H / 2, -EPS, t + EPS)
-    return body, [(p.color_planter, box(-2 * half, 2 * half, -5, pot_h, -1, t + 1))]
+    shade = [(p.color_shade, d) for d in _shadows(lobes[2:], t, clear=s, keep=1.8)]
+    under_rim = box(-2 * half, 2 * half, pot_h - rim - p.accent_w, pot_h - rim, -1, t + 1)
+    return body, shade + [(p.color_planter, box(-2 * half, 2 * half, -5, pot_h, -1, t + 1)),
+                          (p.color_shade, under_rim)]
 
 
 def _lobes(half, pot_h, H, flip):
@@ -1237,11 +1385,13 @@ def basket(p) -> Piece:
     t = p.furniture_t
     top, bowl_top, bowl_bot, r = -3.0, -8.5, -12.0, 3.6
     bowl = Polygon((-3.2, bowl_top), (3.2, bowl_top), (1.8, bowl_bot), (-1.8, bowl_bot), align=None)
-    body = extrude(bowl, t, dir=UP).fuse(*_foliage(((0, -6.4, r), (-1.9, -7.2, 2.2), (1.9, -7.2, 2.2)), t))
+    lobes = ((0, -6.4, r), (-1.9, -7.2, 2.2), (1.9, -7.2, 2.2))
+    body = extrude(bowl, t, dir=UP).fuse(*_foliage(lobes, t))
     body = body.fuse(box(-0.4, 0.4, top - 1.0, EPS, 0, t),
                      tab(0, 0, p.rail_tab_w, p.overhang_t - 0.1, t, 0.3, "+y"))
-    paints = [(p.color_post, box(-5, 5, top, 5, -1, t + 1)),
-              (p.color_planter, box(-5, 5, bowl_bot - 1, bowl_top, -1, t + 1))]
+    shade = [(p.color_shade, _half_disc(x, y, 0.9, t)) for x, y in ((-1.8, -6.6), (1.6, -7.2), (-0.1, -4.6))]
+    paints = shade + [(p.color_post, box(-5, 5, top, 5, -1, t + 1)),
+                      (p.color_planter, box(-5, 5, bowl_bot - 1, bowl_top, -1, t + 1))]
     return Piece(body, [], [(0, p.overhang_t - 0.1, "+y")], color=p.color_shrub, paints=paints)
 
 
