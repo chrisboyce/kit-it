@@ -21,6 +21,7 @@ just                 # = just both coupon  -> everything into ./out
 | `just print` | sprue + color checks, `out/kit.3mf` (4-color), `out/kit.stl`, `out/kit_T*_*.stl`, `out/plate_{top,color}.png` |
 | `just both`  | both of the above + `out/both_iso.png` (model beside its plate) |
 | `just corner`| the Creative Corner kit, built + 5 plates, into `out/corner/` (~13 min) |
+| `just market`| the Colfax Market kit, built + 3 plates, into `out/market/` (~3 min) |
 | `just coupon`| `out/coupon.3mf`, `out/coupon.stl`, `out/coupon_{top,iso}.png` |
 | `just viewer`| browser OCP viewer on :3939 |
 | `just show`  | checks + send the kit to the viewer, no file output |
@@ -53,6 +54,7 @@ identical everywhere. Python deps are pinned in `requirements.txt`.
 
 | file | role |
 |---|---|
+| `corner.py`, `market.py` | the kits: params, parts, poses, plates. New ones come from the `streetview-kit` skill |
 | `vary.py` | seeded randomness for variety within one model (see "Variety") |
 | `params.py` | every dimension and fit value. `ft()`/`inch()` for scale sizes; printer values in mm; `zq()` snaps Z heights to whole layers |
 | `joints.py` | tab, socket (+ lead-in, crush ribs), barb tab, `Piece` |
@@ -356,6 +358,80 @@ will do, since nothing bears on them.
 **Left out for now:** no roof or back wall (it's open behind, like the nook). Also
 the lamp post, street signs, and any lettering.
 
+## Colfax Market kit
+
+The false-front store at Main St and W Grass Valley St, Colfax (the first kit made with the
+`streetview-kit` skill). `just market` builds it, in about 3 minutes. It's the small end of
+what a kit can be: 16 parts, 3 plates, 5 filaments. The joints are the Creative Corner's two
+tiers, so printing it needs the coupon's **HS** and **XL** rows checked first.
+
+**Sizes** come from Street View, with the door (taken as 7 ft) as the ruler, so treat them as
+±10%:
+
+| | real | kit |
+|---|---|---|
+| front width | ~27.5 ft | 96 mm |
+| false front height | ~25.6 ft | 90 mm |
+| side wall | well over 100 ft, not measured | **compressed to 46 ft**, 161 mm |
+| side eave | ~11 ft | 39 mm |
+| front sidewalk | ~8 ft | 28 mm |
+| roof pitch | ~12°, rough estimate | 12° |
+
+The compressed side wall keeps the corner end, the mural and the rear door, which is in fact
+much farther from the corner. The linked panorama is from February 2025.
+
+| view | panoid | yaw | pitch |
+|---|---|---|---|
+| corner, as linked | `xjdWnY6N6IsWqPeGN6KGWQ` | 329 | 3 |
+| front, straight on | `6qb1psUT8N03tLUVvRG1xQ` | 283 | 0 |
+| side, straight on | `6ATpL5PiIHVWoZT0CR7RRg`, `TB7cw90SYluMWqsVLXuWzQ` | 12 | 0 |
+
+**Sloped roofs** are new here. The tin roof and the awning are sheets on a slope, and their supports
+have vertical tabs up through angled slots (`market.roof_slot`). Each slot is longer up the slope than
+the tab is thick, so the tab passes at the sheet's angle, and the sheet lowers straight onto its
+supports. The awning also hooks two back tabs into the wall, in pockets tall enough for the angle.
+
+**Colors:** five filaments, at most four on a plate.
+
+| filament | used for |
+|---|---|
+| brick | walls, false front, awning, rafters, tree planter, the red curb |
+| cream | lettering, window and door frames, sign word blocks, front post collars |
+| coal | posts, mural, sign boards, roof ribs and fascias, top rail, utility cover, window backer |
+| tin | sidewalk, roof, air conditioner, and posters on the backer |
+| moss | the tree, and posters on the backer |
+
+| plate | T1 | T2 | T3 | T4 | parts |
+|---|---|---|---|---|---|
+| `kit_plate1_ground` | brick | cream | coal | tin | base, 6 posts |
+| `kit_plate2_walls` | brick | cream | coal | tin | false front, side wall, rear rafter |
+| `kit_plate3_roof` | brick | **moss** | coal | tin | roof, awning, backer, middle rafter, tree |
+
+Printing in this order, only moss needs a new spool. Plates 1 and 3 are close to full, so moving a
+part means re-checking them.
+
+**Assembly** (part numbers are on the sprue label pads):
+1. Press the backer (4) into the back of the false front (2). Push the side wall's (3) end tabs into
+   the back of the false front, then press that unit into the base (1).
+2. Stand both rafters (7, 8) and all the posts (9-14) in the base.
+3. Lower the roof (5) straight down onto the rafters' and side posts' tabs. The posts are thin, so
+   guide them in from one end.
+4. Hook the awning's (6) back tabs into the false front with its front edge raised, then lower it
+   onto the front posts' tabs.
+5. Cross the tree's sheets (15, 16) and press the tab into the sidewalk.
+
+**Not checked:** nothing here has been printed or sliced. The angled slots are new and aren't on the
+coupon, and the awning's swing-in is reasoned from the clearances, not simulated. Side posts are
+1.6 x 1.2 mm and about 40 mm tall, the most fragile parts in the kit. Colors are judged from photos.
+
+**Changed or invented:** the green Grocery and Liquor boards are coal with word blocks here, since
+green is only loaded on the roof plate. The miners are simple figures in the spirit of the mural, not
+copies of it. The tree stands on the sidewalk under the eave, where the real, taller one stands
+beyond the curb. Posters are random blocks.
+
+**Left out:** the neighboring buildings, the gooseneck lights on the false front, the lamp post, the
+flag, the planter's rocks and the bike racks. The north roof slope and the back are open.
+
 ## What was verified (in this session)
 
 * **Clean build:** `just` builds everything with exit 0. Check A finds 0
@@ -449,5 +525,5 @@ drew the long facade triangles in the wrong order.
 
 * Awning with posts (deferred; the cross-lap prop proves the construction for
   the post).
-* The other Colfax facades (Creative Corner is the first, above).
+* The other Colfax facades (Creative Corner and the Market so far, above).
 * Layered/laminated facades.

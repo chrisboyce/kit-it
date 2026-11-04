@@ -23,6 +23,7 @@ from build123d import Compound, Pos
 
 import checks
 import corner
+import market
 import registry
 import render
 from params import DEFAULT, with_overrides
@@ -32,6 +33,7 @@ from sprue import Item, assign, layout, paginate, verify
 KITS = {
     "nook": (DEFAULT, registry.REGISTRY, ("iso", "front", "top"), None),
     "corner": (corner.DEFAULT, corner.REGISTRY, ("corner", "front", "right", "top"), corner.PLATES),
+    "market": (market.DEFAULT, market.REGISTRY, ("corner", "front", "right", "top"), market.PLATES),
 }
 
 

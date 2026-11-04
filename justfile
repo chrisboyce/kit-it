@@ -22,6 +22,10 @@ both *ARGS:
 corner *ARGS:
     {{py}} view.py --kit corner --mode both {{ARGS}}
 
+# the Colfax Market, all modes -> out/market/
+market *ARGS:
+    {{py}} view.py --kit market --mode both {{ARGS}}
+
 # snap-fit test coupon -> out/coupon.3mf, coupon.stl
 coupon *ARGS:
     {{py}} coupon.py {{ARGS}}
