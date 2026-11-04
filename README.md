@@ -53,6 +53,7 @@ identical everywhere. Python deps are pinned in `requirements.txt`.
 
 | file | role |
 |---|---|
+| `vary.py` | seeded randomness for variety within one model (see "Variety") |
 | `params.py` | every dimension and fit value. `ft()`/`inch()` for scale sizes; printer values in mm; `zq()` snaps Z heights to whole layers |
 | `joints.py` | tab, socket (+ lead-in, crush ribs), barb tab, `Piece` |
 | `parts.py` | one function per part → `Piece` in its print frame (bed face at Z=0) |
@@ -143,6 +144,37 @@ project's 578 keys are tied to its P1S, and without them Snapmaker Orca keeps yo
 Confirmed in the Snapmaker Orca app with a balcony plate. **The Orca CLI can't check
 this:** 2.4.2 segfaults on these projects, with or without the U1 profiles, and it
 has segfaulted on 4-filament U1 jobs even from plain STLs. Check changes in the app.
+
+## Variety: making one model more interesting
+
+A model can vary its repeated features without any two prints differing: the variation
+is fixed by a seed, so every build of the kit comes out the same.
+
+```python
+v = Vary(p, f"planter{i}")          # vary.py: a stream for this one instance
+height = H * v.between(0.82, 1.0, 1.0)      # low, high, nominal
+band = v.pick(("rim", "double", "plain"))   # the first option is the nominal
+```
+
+* `variation_seed` picks a different set: `--set variation_seed=2`.
+* `variety` scales it, from 0 (every instance is the plain template) to 1.
+* Streams are keyed by name, so adding a part or a draw elsewhere reshuffles nothing else.
+* A part made once and reused can't vary, because `registry.build` builds each `make`
+  function once. Give each instance its own, as `corner._planter(i, sheet)` does.
+
+The Creative Corner uses seed 30, chosen for its mix of blooms, heights and pots. A new
+seed needs a full `just corner` run, since only that checks collisions and plate fit.
+
+**What keeps it safe:** vary what's decorative and hold what mates. On the Creative
+Corner's plants, baskets and pots, the pot, tabs and slot height stay fixed, so the
+sheets still lock. Foliage only varies inside the template's envelope, so it can't reach
+a neighbor or grow a plate. Details drop out rather than clip: a shadow that would run
+off the foliage or into the slot isn't drawn, and enclosed pinholes get filled. The usual
+collision, connectivity and bed checks still run on the result.
+
+**Good candidates next:** anything repeated that doesn't mate: shop display wares, which
+blinds are down and how far, sign word blocks, sidewalk cracks and patches, utility cover
+positions.
 
 ## The joints
 

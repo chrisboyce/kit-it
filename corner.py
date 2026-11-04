@@ -23,12 +23,13 @@ x = church_length.
 import math
 from dataclasses import dataclass
 
-from build123d import Circle, Ellipse, Location, Plane, Polygon, Pos, Rectangle, Rot, extrude
+from build123d import Axis, Circle, Ellipse, Location, Plane, Polygon, Pos, Rectangle, Rot, extrude, make_face
 
 from joints import EPS, UP, Piece, box, bridge_roof, socket, split_tab, tab
 from params import Params, ft
 from registry import Spec
 from sprue import Plate
+from vary import Vary
 
 X, Y, Z = (1, 0, 0), (0, 1, 0), (0, 0, 1)
 NEG_X, NEG_Y = (-1, 0, 0), (0, -1, 0)
@@ -64,6 +65,9 @@ class CornerParams(Params):
     color_sprue: str = "stone"         # each Plate sets its own sprue and label color
     color_label: str = "iron"
     color_post: str = "iron"           # posts, outriggers, railings, furniture
+
+    # Chosen for a good mix: some plants in bloom, a range of heights and pots.
+    variation_seed: int = 30
 
     # --- sprue: a bit tighter than the nook, there's a lot to fit -------------
     part_spacing: float = 7.0
@@ -1301,6 +1305,12 @@ def _foliage(lobes, t):
     return [extrude(Pos(x, y) * Circle(r), t, dir=UP) for x, y, r in lobes]
 
 
+def _fill_pinholes(foliage, t):
+    """Random lobes can leave a gap enclosed by others: too small to print, so close it."""
+    top = foliage.faces().sort_by(Axis.Z)[-1]
+    return [extrude(make_face(w), t, dir=UP) for w in top.inner_wires()]
+
+
 def _half_disc(x, y, r, t):
     """Flat side up: the shadow under a clump of leaves. Runs through the sheet, since
     both faces of a plant show. Square corners, so it has no slivers for a slicer to lose."""
@@ -1308,34 +1318,44 @@ def _half_disc(x, y, r, t):
     return Pos(0, 0, -1) * disc & box(x - r - 1, x + r + 1, y - r - 1, y, -1, t + 1)
 
 
-def _shadows(lobes, t, clear=0.0, keep=2.0):
-    """A half disc low in each outer lobe. `clear`: stay this far from x = 0, where the
-    cross-lap slot would cut one up. Each is at least `keep` wide, two nozzle widths+."""
+def _inside(lobes, x, y, margin):
+    return any(math.hypot(x - lx, y - ly) <= r - margin for lx, ly, r in lobes)
+
+
+def _shadow_spots(v, lobes, outer, floor_y, clear, keep):
+    """(x, y, r) of a half disc low in most outer lobes, if it fits. `clear`: stay this far
+    from x = 0, where the cross-lap slot would cut one up. Each is at least `keep` wide.
+    Any that would run off the foliage is dropped, not clipped into a sliver."""
     out = []
-    for x, y, r in lobes:
-        rs = max(keep / 2, 0.55 * r)
+    for x, y, r in outer:
+        rs = max(keep / 2, v.between(0.45, 0.65, 0.55) * r)
         side = 1 if x >= 0 else -1
-        out.append(_half_disc(side * max(abs(x), clear + rs + 0.1), y - 0.1 * r, rs, t))
+        sx, sy = side * max(abs(x), clear + rs + 0.1), y - v.between(0.0, 0.25, 0.1) * r
+        rim = [(sx + rs * math.cos(math.radians(a)), sy + rs * math.sin(math.radians(a)))
+               for a in range(180, 361, 30)]
+        fits = sy - rs > floor_y and all(_inside(lobes, a, b, 0.3) for a, b in rim)
+        apart = all(math.hypot(sx - a, sy - b) > rs + ro + 0.4 for a, b, ro in out)
+        if not v.chance(0.15) and fits and apart:
+            out.append((sx, sy, rs))
     return out
 
 
-def _plant(p, half, pot_h, H, lobes, slot_from_top) -> tuple:
-    """(body, paints) of one sheet of a cross-lapped plant in a tapered pot."""
-    t, cl = p.prop_thickness, p.prop_clearance
-    w0, w1, rim = half * 0.72, half * 0.9, 0.8
-    pot = Polygon((-w0, 0), (w0, 0), (w1, pot_h - rim), (half, pot_h - rim), (half, pot_h),
-                  (-half, pot_h), (-half, pot_h - rim), (-w1, pot_h - rim), align=None)
-    solids = _foliage(lobes, t)
-    body = extrude(pot, t, dir=UP).fuse(*solids)
-    s = t / 2 + cl
-    if slot_from_top:
-        body -= box(-s, s, H / 2, H + half, -EPS, t + EPS)
-    else:
-        body -= box(-s, s, -EPS, H / 2, -EPS, t + EPS)
-    shade = [(p.color_shade, d) for d in _shadows(lobes[2:], t, clear=s, keep=1.8)]
-    under_rim = box(-2 * half, 2 * half, pot_h - rim - p.accent_w, pot_h - rim, -1, t + 1)
-    return body, shade + [(p.color_planter, box(-2 * half, 2 * half, -5, pot_h, -1, t + 1)),
-                          (p.color_shade, under_rim)]
+def _bloom_spots(v, lobes, count, floor_y, top, half, clear, shadows, r=0.8):
+    """Flowers: dots in the foliage, clear of the shadows, the slot and each other."""
+    spots = []
+    for _ in range(30 * count):
+        if len(spots) == count:
+            break
+        x, y = v.rng.uniform(-half, half), v.rng.uniform(floor_y + 1.0, top)
+        if (abs(x) - r > clear + 0.2 and _inside(lobes, x, y, r + 0.3)
+                and all(math.hypot(x - a, y - b) > rs + r + 0.3 for a, b, rs in shadows)
+                and all(math.hypot(x - a, y - b) > 2 * r + 0.6 for a, b in spots)):
+            spots.append((x, y))
+    return [(x, y, r) for x, y in spots]
+
+
+def _disc(x, y, r, t):
+    return Pos(x, y, -1) * extrude(Circle(r), t + 2, dir=UP)
 
 
 def _lobes(half, pot_h, H, flip):
@@ -1343,56 +1363,132 @@ def _lobes(half, pot_h, H, flip):
     lopsided so the two crossed sheets don't look the same."""
     s = -1 if flip else 1
     r0, r1, r2 = 0.48 * half, 0.42 * half, 0.34 * half
-    return ((0, H * 0.54, 0.62 * half), (0, H * 0.74, 0.45 * half),   # no pinholes between lobes
+    return ((0, H * 0.54, 0.62 * half), (0, H * 0.74, 0.45 * half),   # the core, which stays
             (s * 0.55 * half, pot_h + r0, r0), (-s * 0.5 * half, pot_h + 0.9 * r0, r1),
             (s * 0.42 * half, H * 0.68, r1), (-s * 0.42 * half, H * 0.72, r1),
             (s * 0.2 * half, H - r2, r2), (-s * 0.35 * half, H - 1.25 * r2, r2))
 
 
-def _plant_a(p, half, pot_h, H, tab_len, tab_w) -> Piece:
+def _vary_lobes(v, lobes, half, pot_h, H, spread):
+    """Nudge the outer clumps, keeping them inside the template's own envelope, so a
+    plant only ever gets smaller than the space the kit left for it."""
+    limit = 1.03 * half
+    out = list(lobes[:2])
+    for x, y, r in lobes[2:]:
+        if v.chance(0.2):                # a gap in the outline
+            continue
+        r *= v.between(0.85, 1.15, 1.0)
+        x = spread * x + v.between(-0.1, 0.1, 0.0) * half
+        y += v.between(-0.06, 0.06, 0.0) * H
+        x = math.copysign(min(abs(x), limit - r), x)
+        y = min(max(y, pot_h + 0.85 * r), H - r)
+        out.append((x, y, r))
+    return tuple(out)
+
+
+def _plant(p, key, half, pot_h, H, slot_from_top) -> tuple:
+    """(body, paints) of one sheet of a cross-lapped plant in a tapered pot. The pot, the
+    slot and the nominal height stay put, so the sheets still lock; the rest is per plant.
+    Both sheets share the plant's style and each has its own clumps."""
+    style = Vary(p, key)
+    height = H * style.between(0.82, 1.0, 1.0)
+    spread = style.between(0.84, 1.0, 1.0)
+    blooms = style.pick((0, 3, 5, 7))
+    band = style.pick(("rim", "rim", "double", "cap", "plain"))
+
+    sheet = "a" if slot_from_top else "b"
+    v = Vary(p, key, sheet)
+    lobes = _vary_lobes(v, _lobes(half, pot_h, height, not slot_from_top), half, pot_h, height, spread)
+
+    t, cl = p.prop_thickness, p.prop_clearance
+    w0, w1, rim = half * 0.72, half * 0.9, 0.8
+    pot = Polygon((-w0, 0), (w0, 0), (w1, pot_h - rim), (half, pot_h - rim), (half, pot_h),
+                  (-half, pot_h), (-half, pot_h - rim), (-w1, pot_h - rim), align=None)
+    solids = _foliage(lobes, t)
+    body = extrude(pot, t, dir=UP).fuse(*solids)
+    foliage = solids[0].fuse(*solids[1:])
+    fill = _fill_pinholes(foliage, t)
+    if fill:
+        body = body.fuse(*fill)
+    s = t / 2 + cl
+    if slot_from_top:
+        body -= box(-s, s, H / 2, H + half, -EPS, t + EPS)
+    else:
+        body -= box(-s, s, -EPS, H / 2, -EPS, t + EPS)
+
+    shadows = _shadow_spots(v, lobes, lobes[2:], pot_h, s, 1.8)
+    paints = [(p.color_shade, _half_disc(x, y, r, t)) for x, y, r in shadows]
+    paints += [(p.color_planter, _disc(x, y, r, t))
+               for x, y, r in _bloom_spots(v, lobes, blooms, pot_h, height, half, s, shadows)]
+    paints.append((p.color_planter, box(-2 * half, 2 * half, -5, pot_h, -1, t + 1)))
+    stripe = lambda y0, y1: (p.color_shade, box(-2 * half, 2 * half, y0, y1, -1, t + 1))
+    under_rim = stripe(pot_h - rim - p.accent_w, pot_h - rim)
+    paints += {"rim": [under_rim],
+               "double": [under_rim, stripe(0.3 * pot_h, 0.3 * pot_h + p.accent_w)],
+               "cap": [stripe(pot_h - rim, pot_h + EPS)],
+               "plain": []}[band]
+    return body, paints
+
+
+def _plant_a(p, key, half, pot_h, H, tab_len, tab_w) -> Piece:
     """Slot from the top, and the tab that plants it in its pocket."""
-    body, paints = _plant(p, half, pot_h, H, _lobes(half, pot_h, H, False), True)
+    body, paints = _plant(p, key, half, pot_h, H, True)
     body = body.fuse(tab(0, 0, tab_w, tab_len, p.prop_thickness, p.lead_in))
     return Piece(body, [], [(0, -tab_len, "-y")], color=p.color_shrub, paints=paints)
 
 
-def _plant_b(p, half, pot_h, H) -> Piece:
+def _plant_b(p, key, half, pot_h, H) -> Piece:
     """Slot from the bottom; stands on its two feet."""
-    body, paints = _plant(p, half, pot_h, H, _lobes(half, pot_h, H, True), False)
+    body, paints = _plant(p, key, half, pot_h, H, False)
     return Piece(body, [], [(-0.42 * half, 0, "-y")], color=p.color_shrub, paints=paints)
 
 
-def planter_a(p) -> Piece:
-    return _plant_a(p, p.planter_half, p.planter_pot_h, p.planter_h, p.prop_tab_len, p.prop_tab_width)
+def _planter(i, sheet):
+    """Each plant gets its own function, so registry.build makes each one separately."""
+    def make(p):
+        key, half, pot_h, H = f"planter{i}", p.planter_half, p.planter_pot_h, p.planter_h
+        if sheet == "a":
+            return _plant_a(p, key, half, pot_h, H, p.prop_tab_len, p.prop_tab_width)
+        return _plant_b(p, key, half, pot_h, H)
+    return make
 
 
-def planter_b(p) -> Piece:
-    return _plant_b(p, p.planter_half, p.planter_pot_h, p.planter_h)
+def _pot(i, sheet):
+    """On a deck: sheet A's tab goes through, into the same slot as a railing's."""
+    def make(p):
+        key, half, pot_h, H = f"pot{i}", p.pot_half, p.pot_pot_h, p.pot_h
+        if sheet == "a":
+            return _plant_a(p, key, half, pot_h, H, p.deck_t - 0.2, p.rail_tab_w)
+        return _plant_b(p, key, half, pot_h, H)
+    return make
 
 
-def pot_a(p) -> Piece:
-    """On a deck: its tab goes through, into the same slot as a railing's."""
-    return _plant_a(p, p.pot_half, p.pot_pot_h, p.pot_h, p.deck_t - 0.2, p.rail_tab_w)
-
-
-def pot_b(p) -> Piece:
-    return _plant_b(p, p.pot_half, p.pot_pot_h, p.pot_h)
-
-
-def basket(p) -> Piece:
-    """Hangs from the overhang. Local y = 0 is the overhang's underside: an iron
-    hanger, a ball of foliage, and a terracotta bowl under it."""
-    t = p.furniture_t
-    top, bowl_top, bowl_bot, r = -3.0, -8.5, -12.0, 3.6
-    bowl = Polygon((-3.2, bowl_top), (3.2, bowl_top), (1.8, bowl_bot), (-1.8, bowl_bot), align=None)
-    lobes = ((0, -6.4, r), (-1.9, -7.2, 2.2), (1.9, -7.2, 2.2))
-    body = extrude(bowl, t, dir=UP).fuse(*_foliage(lobes, t))
-    body = body.fuse(box(-0.4, 0.4, top - 1.0, EPS, 0, t),
-                     tab(0, 0, p.rail_tab_w, p.overhang_t - 0.1, t, 0.3, "+y"))
-    shade = [(p.color_shade, _half_disc(x, y, 0.9, t)) for x, y in ((-1.8, -6.6), (1.6, -7.2), (-0.1, -4.6))]
-    paints = shade + [(p.color_post, box(-5, 5, top, 5, -1, t + 1)),
-                      (p.color_planter, box(-5, 5, bowl_bot - 1, bowl_top, -1, t + 1))]
-    return Piece(body, [], [(0, p.overhang_t - 0.1, "+y")], color=p.color_shrub, paints=paints)
+def _basket(i):
+    def make(p):
+        """Hangs from the overhang. Local y = 0 is the overhang's underside: an iron
+        hanger, a ball of foliage, and a terracotta bowl under it."""
+        t = p.furniture_t
+        v = Vary(p, f"basket{i}")
+        top, bowl_top, bowl_bot = -3.0, -8.5, -12.0
+        r = v.between(3.1, 3.6, 3.6)     # at least this, to reach the hanger
+        lobes = [(0, -6.4, r)]
+        for side in (-1, 1):
+            rs = v.between(1.9, 2.3, 2.2)
+            lobes.append((side * v.between(1.5, 4.1 - rs, 1.9), v.between(-7.4, -6.6, -7.2), rs))
+        bowl = Polygon((-3.2, bowl_top), (3.2, bowl_top), (1.8, bowl_bot), (-1.8, bowl_bot), align=None)
+        body = extrude(bowl, t, dir=UP).fuse(*_foliage(lobes, t))
+        body = body.fuse(box(-0.4, 0.4, top - 1.0, EPS, 0, t),
+                         tab(0, 0, p.rail_tab_w, p.overhang_t - 0.1, t, 0.3, "+y"))
+        outer = [(-1.8, v.between(-7.0, -6.2, -6.6), 1.6), (1.6, v.between(-7.4, -6.8, -7.2), 1.6),
+                 (v.between(-0.5, 0.5, -0.1), v.between(-5.0, -4.2, -4.6), 1.6)]
+        shadows = _shadow_spots(v, lobes, outer, bowl_top, 0.0, 1.6)
+        blooms = _bloom_spots(v, lobes, v.pick((0, 2, 3, 4)), bowl_top, top - 1.0, 4.0, 0.0, shadows, r=0.7)
+        paints = [(p.color_shade, _half_disc(x, y, rs, t)) for x, y, rs in shadows]
+        paints += [(p.color_planter, _disc(x, y, rb, t)) for x, y, rb in blooms]
+        paints += [(p.color_post, box(-5, 5, top, 5, -1, t + 1)),
+                   (p.color_planter, box(-5, 5, bowl_bot - 1, bowl_top, -1, t + 1))]
+        return Piece(body, [], [(0, p.overhang_t - 0.1, "+y")], color=p.color_shrub, paints=paints)
+    return make
 
 
 # ---------------------------------------------------------------------------
@@ -1612,11 +1708,11 @@ _LIST = [
     ("backer_main", backer_main, _behind(_pose_main)),
     ("backer_store", backer_store, _behind(_pose_store)),
     ("backer_door", backer_door, _behind(_pose_door)),
-    *[(f"planter{i}_{s}", make, _plant_pose(_planter_place(i), s == "b"))
-      for i in range(4) for s, make in (("a", planter_a), ("b", planter_b))],
-    *[(f"pot{i}_{s}", make, _plant_pose(_pot_place(i), s == "b"))
-      for i in range(3) for s, make in (("a", pot_a), ("b", pot_b))],
-    *[(f"basket{i}", basket, _basket_pose(i)) for i in range(3)],
+    *[(f"planter{i}_{s}", _planter(i, s), _plant_pose(_planter_place(i), s == "b"))
+      for i in range(4) for s in "ab"],
+    *[(f"pot{i}_{s}", _pot(i, s), _plant_pose(_pot_place(i), s == "b"))
+      for i in range(3) for s in "ab"],
+    *[(f"basket{i}", _basket(i), _basket_pose(i)) for i in range(3)],
 ]
 
 REGISTRY = [Spec(i + 1, name, make, pose) for i, (name, make, pose) in enumerate(_LIST)]

@@ -36,6 +36,10 @@ class Params:
     bed_x: float = 220.0
     bed_y: float = 220.0
     bed_margin: float = 5.0
+
+    # Model variety (vary.py): fixed for a given seed, so every build is the same.
+    variation_seed: int = 1
+    variety: float = 1.0             # 0: every instance is the plain template
     # Longest flat span we'll print with nothing under it. Blind pockets that
     # open onto the bed get a 45° chamfered roof that shrinks their bridge to this.
     max_bridge: float = 2.5
