@@ -192,12 +192,13 @@ def color_preview(items, path: Path, view="iso", width=1600, height=1200):
         win[hit] = depth[hit]
         img[y0:y1 + 1, x0:x1 + 1][hit] = cols[i]
 
-    # Outlines where depth jumps by more than ~0.25 mm.
+    # Outlines where depth jumps by more than ~0.25 mm. Second differences, since a
+    # plane seen at a steep angle changes depth by more than that on every pixel.
     z = np.where(np.isfinite(zbuf), zbuf, zbuf[np.isfinite(zbuf)].min() - 10)
     jump = 0.25   # model units (mm)
     edge = np.zeros_like(z, dtype=bool)
-    edge[:, 1:] |= np.abs(np.diff(z, axis=1)) > jump
-    edge[1:, :] |= np.abs(np.diff(z, axis=0)) > jump
+    edge[:, 1:-1] |= np.abs(np.diff(z, n=2, axis=1)) > jump
+    edge[1:-1, :] |= np.abs(np.diff(z, n=2, axis=0)) > jump
     img[edge] *= 0.35
     _write_png(path, img.astype(np.uint8))
     return path

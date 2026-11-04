@@ -17,6 +17,8 @@ import sys
 import time
 from pathlib import Path
 
+from dataclasses import replace
+
 from build123d import Compound, Pos
 
 import checks
@@ -24,12 +26,12 @@ import corner
 import registry
 import render
 from params import DEFAULT, with_overrides
-from sprue import Item, layout, paginate, verify
+from sprue import Item, assign, layout, paginate, verify
 
-# name: (default params, part list, assembled views to draw)
+# name: (default params, part list, assembled views to draw, plates or None to paginate)
 KITS = {
-    "nook": (DEFAULT, registry.REGISTRY, ("iso", "front", "top")),
-    "corner": (corner.DEFAULT, corner.REGISTRY, ("corner", "front", "right", "top")),
+    "nook": (DEFAULT, registry.REGISTRY, ("iso", "front", "top"), None),
+    "corner": (corner.DEFAULT, corner.REGISTRY, ("corner", "front", "right", "top"), corner.PLATES),
 }
 
 
@@ -72,8 +74,9 @@ def run_built(kit, p, out: Path, export=True, views=("iso", "front", "top")):
     return model, regions, bool(errors)
 
 
-def run_plate(items, p, out: Path, stem: str, export=True):
-    """One sprue plate. Returns (solid, [(name, solid, hex)], failed)."""
+def run_plate(items, p, out: Path, stem: str, export=True, tools=None):
+    """One sprue plate; tools is the color in T1, T2, ... (default: the palette).
+    Returns (solid, [(name, solid, hex)], failed)."""
     s = layout(items, p)
     plate = s.solid()
     errors, lines = verify(s, p)
@@ -83,10 +86,12 @@ def run_plate(items, p, out: Path, stem: str, export=True):
     lines += l
 
     by_color = s.color_solids(p)
-    tools = sorted((p.tool(c), c) for c in by_color)
+    loaded = list(tools or [n for n, _ in p.palette])[:p.max_tools]
+    missing = sorted(set(by_color) - set(loaded))
+    if missing:
+        errors.append(f"COLORS NOT LOADED: {', '.join(missing)} (tools: {', '.join(loaded)})")
+    tools = sorted((loaded.index(c) + 1, c) for c in by_color if c in loaded)
     lines.append("colors: " + ", ".join(f"T{t} {c}" for t, c in tools))
-    if len(tools) > p.max_tools:
-        errors.append(f"TOO MANY COLORS: {len(tools)} > max_tools {p.max_tools}")
     e, l = checks.color_partition(plate, by_color)
     errors += e
     lines += l
@@ -109,15 +114,18 @@ def run_plate(items, p, out: Path, stem: str, export=True):
     return plate, [(f"{stem} T{t} {c}", sol, h) for c, t, h, sol in regions], bool(errors)
 
 
-def run_print(kit, p, out: Path, export=True):
-    """Returns ([plate solids], [(name, solid, hex) per plate], failed)."""
+def run_print(kit, p, out: Path, export=True, named=None):
+    """named: [sprue.Plate], or None to paginate by size.
+    Returns ([plate solids], [(name, solid, hex) per plate], failed)."""
     items = [Item(spec.name, piece, str(spec.num)) for spec, piece in kit]
-    plates = paginate(items, p)
+    plates = assign(items, named) if named else paginate(items, p)
     solids, regions, failed = [], [], False
     for n, group in enumerate(plates, 1):
-        stem = "kit" if len(plates) == 1 else f"kit_plate{n}"
+        spec = named[n - 1] if named else None
+        stem = "kit" if len(plates) == 1 else f"kit_plate{n}" + (f"_{spec.name}" if spec else "")
         print(f" {stem}: {', '.join(it.label for it in group)}")
-        plate, reg, bad = run_plate(group, p, out, stem, export)
+        pp = replace(p, color_sprue=spec.sprue, color_label=spec.label) if spec else p
+        plate, reg, bad = run_plate(group, pp, out, stem, export, spec.tools if spec else None)
         solids.append(plate)
         regions.append(reg)
         failed |= bad
@@ -136,7 +144,7 @@ def main(argv=None):
                     help="skip SVG/PNG/3MF/STL output (fast path for the viewer)")
     args = ap.parse_args(argv)
 
-    defaults, specs, views = KITS[args.kit]
+    defaults, specs, views, named = KITS[args.kit]
     p = with_overrides(defaults, args.set)
     if args.out is None:
         args.out = Path("out") if args.kit == "nook" else Path("out") / args.kit
@@ -160,7 +168,7 @@ def main(argv=None):
 
     if args.mode in ("print", "both"):
         print("print:")
-        plates, plate_regions, bad = run_print(kit, p, args.out, export)
+        plates, plate_regions, bad = run_print(kit, p, args.out, export, named)
         failed |= bad
         # Beside the assembled model (if there is one), lying flat, in a row.
         x = model.bounding_box().max.X + 25 if args.mode == "both" else 0.0

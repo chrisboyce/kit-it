@@ -123,8 +123,10 @@ class Params:
     label_raise: float = 0.4
 
     # --- color ------------------------------------------------------------------
-    # One filament per toolhead. Order = tool number (T1..T4). Hex is only for
-    # previews; the printer uses whatever filament is loaded in that tool.
+    # One filament per toolhead. Palette order = tool number (T1..T4), unless the
+    # kit names its plates (sprue.Plate); then a kit may use more colors than the
+    # printer has tools, as long as each plate stays within max_tools. Hex is only
+    # for previews; the printer uses whatever filament is loaded in that tool.
     max_tools: int = 4
     palette: tuple = (
         ("brick", "#8e3b2e"),
@@ -145,10 +147,6 @@ class Params:
     # A colored face feature also colors this much material *under* it, so a
     # light color over a dark one isn't just 2 translucent layers.
     color_depth: float = 0.6
-
-    def tool(self, color: str) -> int:
-        """Toolhead number (1-based) for a palette color."""
-        return [n for n, _ in self.palette].index(color) + 1
 
     def hex(self, color: str) -> str:
         return dict(self.palette)[color]
@@ -215,10 +213,9 @@ def with_overrides(p: Params, pairs: list[str]) -> Params:
 
 
 def check_colors(p: Params):
-    """Every color_* must name a palette entry, and the palette must fit the printer."""
+    """Every color_* must name a palette entry. view.run_plate checks each plate
+    against the printer's tools."""
     names = [n for n, _ in p.palette]
-    if len(names) > p.max_tools:
-        raise SystemExit(f"palette has {len(names)} colors but max_tools is {p.max_tools}")
     for f in fields(p):
         if f.name.startswith("color_") and f.name != "color_depth":
             if getattr(p, f.name) not in names:

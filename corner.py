@@ -7,9 +7,12 @@ solid west end, so it fits the bed in one piece.
 Two tiers of joint:
   * Main panels (walls, base) use split tabs at split_clearance. They carry the
     model and set its alignment.
-  * Features (storefront, balcony, overhang, railings, furniture) are 1.2-2 mm
-    sheets, cross-lapped or tabbed at prop_clearance with no ribs or barbs. They
-    only have to stay put, and they're what gives the building its depth.
+  * Features (storefront, balcony, overhang, railings, furniture, plants) are
+    1-2 mm sheets, cross-lapped or tabbed at prop_clearance with no ribs or barbs.
+    They only have to stay put, and they're what gives the building its depth.
+    Window backers peg into the backs of the panels the same way.
+
+Eight filaments, at most four to a plate: see PLATES at the bottom.
 
 World frame: X along Church St (west end at x=0, Main St corner at +x), Y from
 the Church St curb into the building, Z up, base underside at z=0. The Church St
@@ -25,6 +28,7 @@ from build123d import Circle, Ellipse, Location, Plane, Polygon, Pos, Rectangle,
 from joints import EPS, UP, Piece, box, bridge_roof, socket, split_tab, tab
 from params import Params, ft
 from registry import Spec
+from sprue import Plate
 
 X, Y, Z = (1, 0, 0), (0, 1, 0), (0, 0, 1)
 NEG_X, NEG_Y = (-1, 0, 0), (0, -1, 0)
@@ -32,21 +36,30 @@ NEG_X, NEG_Y = (-1, 0, 0), (0, -1, 0)
 
 @dataclass(frozen=True)
 class CornerParams(Params):
-    # --- color: four tools, see README ---------------------------------------
+    # --- color: eight filaments, four per plate (PLATES, and see README) ------
     palette: tuple = (
         ("sage", "#9dba97"),
+        ("moss", "#55803f"),
         ("stone", "#ddd6c3"),
         ("iron", "#24483a"),
-        ("rust", "#b5592d"),
+        ("rust", "#c0602c"),
+        ("concrete", "#a3a29c"),
+        ("terra", "#8f3f2b"),
+        ("smoke", "#2f353b"),          # or a translucent filament, to light it from inside
     )
     color_wall: str = "sage"
+    color_band: str = "iron"           # pilasters, piers, belt courses, cornice
     color_trim: str = "stone"
     color_sign: str = "stone"
     color_door: str = "rust"
-    color_base: str = "stone"
-    color_planter: str = "stone"
-    color_shrub: str = "iron"
-    color_sprue: str = "stone"
+    color_bulkhead: str = "iron"
+    color_base: str = "concrete"
+    color_deck_top: str = "concrete"
+    color_roof: str = "iron"           # top of the overhang
+    color_glass: str = "smoke"
+    color_planter: str = "terra"
+    color_shrub: str = "moss"
+    color_sprue: str = "stone"         # each Plate sets its own sprue and label color
     color_label: str = "iron"
     color_post: str = "iron"           # posts, outriggers, railings, furniture
 
@@ -101,6 +114,16 @@ class CornerParams(Params):
     furniture_t: float = 1.0
     table_h: float = ft(2.5)
     outrigger_cross: float = 4.0       # how far the outrigger drops into the post's slot
+    backer_t: float = 1.0
+    backer_peg: float = 1.8            # square pegs on a backer's front, into its host's back
+    backer_peg_h: float = 0.6
+    backer_pocket: float = 0.8
+    planter_half: float = 7.0
+    planter_pot_h: float = 8.0
+    planter_h: float = 21.0
+    pot_half: float = 4.0
+    pot_pot_h: float = 5.0
+    pot_h: float = 13.0
 
     # --- panel joints --------------------------------------------------------
     corner_tab_len: float = 2.0        # blind pocket + its chamfered roof, in a 3 mm wall
@@ -285,6 +308,27 @@ class CornerParams(Params):
     def chair_dx(self):
         return (-8.0, 8.0)
 
+    # --- greenery -------------------------------------------------------------
+    @property
+    def planters(self):
+        """World (x, y, run of sheet A) on the sidewalk: two on each street."""
+        c, y = self.bay_centers[1], self.sidewalk - 8.5
+        xm = self.church_length + 8.5
+        y0 = self.sidewalk - self.main_pier_proud + self.pier_width / 2
+        return ((self.pavilion - 2.0, y, X), (c, y, X),
+                (xm, y0, Y), (xm, y0 + self.main_panel - self.pier_width - 1.5, Y))
+
+    @property
+    def deck_pots(self):
+        """World (x, y, run of sheet A) on the balcony: two on Church St, one on Main."""
+        c, y = self.bay_centers, self.sidewalk - 5.0
+        return ((c[0] + 11.0, y, X), (c[1] + 13.0, y, X),
+                (self.church_length + 5.0, self.entry_y, Y))
+
+    @property
+    def basket_xs(self):
+        return self.bay_centers
+
     @property
     def kit_xy_features(self):
         return {"rail_picket": self.rail_picket, "rail_bar": self.rail_bar,
@@ -377,6 +421,38 @@ def _sock(cx, cy, sx, sy, z0, z1, p, mouth="top"):
     return socket(cx, cy, sx, sy, z0, z1, p, mouth=mouth, rib_height=0)[0]
 
 
+# Where each backer's pegs go, in its host's local frame: (x0, x1, y0, y1).
+def _pegs_church(p):
+    return (40.0, 130.0, 8.0, 72.0)
+
+
+def _pegs_main(p):
+    return (24.0, p.main_panel - 24.0, 55.0, 73.0)
+
+
+def _pegs_store(p):
+    return (12.0, p.store_w - 12.0, 4.0, 29.75)
+
+
+def _pegs_door(p):
+    return (p.door_panel_w / 2 - 7.0, p.door_panel_w / 2 + 7.0, 8.0, 26.0)
+
+
+def _peg_grid(rect):
+    """(x, y, floats in x, floats in y): one peg locates the sheet, the rest float
+    the way their spacing could fight it, and it stays flat on all four."""
+    x0, x1, y0, y1 = rect
+    return ((x0, y0, False, False), (x1, y0, True, False), (x0, y1, False, True), (x1, y1, True, True))
+
+
+def _peg_pockets(p, rect):
+    """Blind pockets in a host panel's back (mouth on the bed)."""
+    cl, fl, w = p.prop_clearance, p.float_clearance, p.backer_peg
+    depth = p.zq(p.backer_pocket)
+    return [_sock(x, y, w + 2 * (fl if fx else cl), w + 2 * (fl if fy else cl), 0, depth, p, mouth="bottom")
+            for x, y, fx, fy in _peg_grid(rect)]
+
+
 def wall_church(p) -> Piece:
     """Church St wall. Local: x east along the wall, y up, z out of the front."""
     Lc, H, tw, pav = p.church_panel, p.roof_z, p.wall_thickness, p.pavilion
@@ -386,15 +462,16 @@ def wall_church(p) -> Piece:
     c = p.bay_centers
 
     # --- solid west end ------------------------------------------------------
-    f.raised(0, 4, 0, dz - 1, color=None)
-    f.raised(pav - 4, pav, 0, dz - 1)
-    f.raised(0, pav, dz - 1, dz + 4)
+    band = p.color_band
+    f.raised(0, 4, 0, dz - 1, color=band)
+    f.raised(pav - 4, pav, 0, dz - 1, color=band)
+    f.raised(0, pav, dz - 1, dz + 4, color=band)
     f.door(9, 19.5, 0, ft(7), screen=False)
     f.window(20.5, 32, 3.5, ft(7) - 0.5)
     f.window(pav / 2 - 5.5, pav / 2 + 5.5, dz + 8, dz + 26, bar_at=dz + 17)
-    f.raised(0, 4, dz + 4, ev)
-    f.raised(pav - 4, pav, dz + 4, ev)
-    f.raised(0, pav, ev, ev + 1.6)
+    f.raised(0, 4, dz + 4, ev, color=band)
+    f.raised(pav - 4, pav, dz + 4, ev, color=band)
+    f.raised(0, pav, ev, ev + 1.6, color=band)
 
     # --- ground floor, one bay each ------------------------------------------
     f.window(c[0] - 18, c[0] - 5, 3.5, 17.5, bar_at=10.5)          # shuttered window
@@ -424,7 +501,7 @@ def wall_church(p) -> Piece:
         f.raised(x - 0.4, x + 0.4, ev + 1.6, H - 1.4, h=p.batten_raise)
         x += p.seam_pitch
     f.raised(0, Lc - p.pier_width + EPS, H - 1.4, H, color=p.color_door)
-    f.raised(Lc - p.pier_width, Lc, ev + 1.6, p.pier_z - 1.4)
+    f.raised(Lc - p.pier_width, Lc, ev + 1.6, p.pier_z - 1.4, color=band)
     f.raised(Lc - p.pier_width, Lc, p.pier_z - 1.4, p.pier_z, color=p.color_door)
 
     # --- pockets on the front face for the balcony and overhang --------------
@@ -448,6 +525,7 @@ def wall_church(p) -> Piece:
     for y in p.corner_tab_ys:
         cuts.append(_sock(p.return_inset + tw / 2, y, tw + 2 * cs, p.split_width + 2 * cs,
                           0, p.zq(p.corner_tab_len + 0.2), p, mouth="bottom"))
+    cuts += _peg_pockets(p, _pegs_church(p))
     body = f.finish(body).fuse(*adds).cut(*cuts)
     return Piece(body, [], [(0.45 * Lc, 0, "-y"), (0.60 * Lc, 0, "-y"), (0.08 * Lc, 0, "-y")],
                  color=p.color_wall, paints=f.paints)
@@ -464,8 +542,8 @@ def wall_main(p) -> Piece:
 
     # Piers top and bottom; left off behind the deck so it can sit against the wall.
     for x0, x1 in ((0, pw), (W - pw, W)):
-        f.raised(x0, x1, 0, dz - 0.2)
-        f.raised(x0, x1, dt + 0.2, p.pier_z)
+        f.raised(x0, x1, 0, dz - 0.2, color=p.color_band)
+        f.raised(x0, x1, dt + 0.2, p.pier_z, color=p.color_band)
         f.raised(x0, x1, p.pier_z - 1.6, p.pier_z, h=0.6, color=p.color_door)
     # Cream panel with two tall windows, in a sage surround.
     ux0, ux1 = pw + 4, W - pw - 4
@@ -498,6 +576,7 @@ def wall_main(p) -> Piece:
     for y in p.corner_tab_ys:
         cuts.append(_sock(p.main_pier_proud + tw / 2, y, tw + 2 * cs, p.split_width + 2 * cs,
                           0, p.zq(p.corner_tab_len + 0.2), p, mouth="bottom"))
+    cuts += _peg_pockets(p, _pegs_main(p))
     body = f.finish(body).fuse(*adds).cut(*cuts)
     return Piece(body, [], [(8.8, 0, "-y"), (W - 2.0, 0, "-y")], color=p.color_wall, paints=f.paints)
 
@@ -515,7 +594,11 @@ def wall_west(p) -> Piece:
         adds.append(t)
         cuts.append(s)
     body = body.fuse(*adds).cut(*cuts)
-    return Piece(body, [], [(0.15 * D, 0, "-y"), (0.85 * D, 0, "-y")], color=p.color_wall)
+    # The Church St belt course carries on around the corner, painted on flat.
+    z = tw - p.zq(p.color_depth)
+    belts = [(p.color_band, box(-1, D + 1, y0, y1, z, tw + 1))
+             for y0, y1 in ((p.deck_z - 1, p.deck_z + 4), (p.eave_z, p.eave_z + 1.6))]
+    return Piece(body, [], [(0.15 * D, 0, "-y"), (0.85 * D, 0, "-y")], color=p.color_wall, paints=belts)
 
 
 def _base_slab(p, x0, x1, y0, y1, corner=False):
@@ -587,6 +670,8 @@ def base_a(p) -> Piece:
         cuts.append(pocket(xd + p.storefront_t / 2, p.entry_y + dy, p.storefront_t, 3.0, p.post_tab_len))
     for y in cheeks:
         cuts.append(pocket(xd + p.storefront_t + p.entry_inset / 2, y, 3.0, p.sheet_t, p.post_tab_len))
+    for x, y, run in p.planters[:2]:
+        cuts.append(pocket(x, y, p.prop_tab_width, p.prop_thickness, p.prop_tab_len))
 
     # --- key into base B -----------------------------------------------------
     adds = []
@@ -596,6 +681,9 @@ def base_a(p) -> Piece:
         cuts.append(s)
     body = body.fuse(*adds).cut(*cuts)
     return Piece(body, [], [(0.3 * W, D, "+y"), (0.7 * W, D, "+y")], color=p.color_base)
+
+
+BASE_B_PRINT = Rot(0, 0, 90)
 
 
 def base_b(p) -> Piece:
@@ -622,9 +710,13 @@ def base_b(p) -> Piece:
     for y in p.main_post_ys:
         cuts.append(_sock(p.post_line_x, y, p.post_t + 2 * cl, p.post_w + 2 * cl,
                           tb - p.zq(p.post_tab_len + 0.2), tb, p))
-    body = body.cut(*cuts)
-    # Modeled in world coordinates; sprue.layout() works from the bounding box.
-    return Piece(body, [], [(x0 + 0.5 * (x1 - x0), D, "+y")], color=p.color_base)
+    for x, y, run in p.planters[2:]:
+        cuts.append(_sock(x, y, p.prop_thickness + 2 * cl, p.prop_tab_width + 2 * cl,
+                          tb - p.zq(p.prop_tab_len + 0.2), tb, p))
+    # Modeled in world coordinates, then printed a quarter turn round so it's a
+    # long low strip on the plate (see _pose_base_b). Gates on the seam edge.
+    body = BASE_B_PRINT * body.cut(*cuts)
+    return Piece(body, [], [(-y, x0, "-y") for y in (30.0, 118.0)], color=p.color_base)
 
 
 # ---------------------------------------------------------------------------
@@ -652,7 +744,8 @@ def storefront(p) -> Piece:
     for i in range(n):
         x = margin + i * (w + 1)
         cuts.append(box(x, x + w, band, H - 1.2, -EPS, t + EPS))
-    paints.append((p.color_trim, box(-1, W + 1, -1, sill, -1, t + 10)))
+    paints.append((p.color_bulkhead, box(-1, W + 1, -1, sill, -1, t + 10)))
+    cuts += _peg_pockets(p, _pegs_store(p))
     # Slots for the cheeks' front tabs.
     cl = p.prop_clearance
     for dy in p.cheek_dy:
@@ -681,9 +774,10 @@ def door_panel(p) -> Piece:
                         p.cheek_tab_y - 4 - cl, p.cheek_tab_y + 4 + cl, -EPS, t + EPS))
     for dx in (-p.door_tab_dx, p.door_tab_dx):
         adds.append(tab(W / 2 + dx, 0, 3.0, p.post_tab_len, t, p.lead_in))
+    cuts += _peg_pockets(p, _pegs_door(p))
     body = body.fuse(*adds).cut(*cuts)
     return Piece(body, [], [(1.0, 0, "-y"), (W - 1.0, 0, "-y")], color=p.color_door,
-                 paints=[(p.color_trim, box(x0, x1, 2.0, ft(1.2), -1, t + 10))])
+                 paints=[(p.color_bulkhead, box(x0, x1, 2.0, ft(1.2), -1, t + 10))])
 
 
 def entry_cheek(p) -> Piece:
@@ -698,7 +792,7 @@ def entry_cheek(p) -> Piece:
             tab(L / 2, 0, 3.0, p.post_tab_len, t, p.lead_in)]
     body = body.fuse(*adds)
     return Piece(body, [], [(1.0, 0, "-y"), (L - 1.0, 0, "-y")], color=p.color_door,
-                 paints=[(p.color_trim, box(-5, L + 5, -5, ft(2), -1, t + 10))])
+                 paints=[(p.color_bulkhead, box(-5, L + 5, -5, ft(2), -1, t + 10))])
 
 
 # ---------------------------------------------------------------------------
@@ -752,8 +846,15 @@ def deck_church(p) -> Piece:
     tx = p.table_x - x0
     ty = D * 0.45
     cuts += _furniture_holes(p, tx, ty, t)
+    # Potted plants, under the windows.
+    y0 = p.sidewalk - D
+    for x, y, run in p.deck_pots[:2]:
+        cuts.append(_rail_slot(p, x - x0, y - y0, t))
     body = body.fuse(*adds).cut(*cuts)
-    return Piece(body, [], [(0.25 * L, D, "+y"), (0.75 * L, D, "+y")], color=p.color_door)
+    # A concrete walking surface inside a rust edge; it runs on across the seam.
+    top = box(1.0, L, 1.0, D, t - p.zq(p.color_depth), t + 1)
+    return Piece(body, [], [(0.25 * L, D, "+y"), (0.75 * L, D, "+y")], color=p.color_door,
+                 paints=[(p.color_deck_top, top)])
 
 
 def _furniture_holes(p, tx, ty, t):
@@ -802,8 +903,18 @@ def deck_main(p) -> Piece:
     sx, sy = p.sign_local
     cuts.append(box(sx - p.rail_tab_w / 2 - cl, sx + p.rail_tab_w / 2 + cl,
                     sy - p.sheet_t / 2 - cl, sy + p.sheet_t / 2 + cl, -EPS, t + EPS))
+    # Potted plant between the two tall windows. Sheet A runs along local x here.
+    x, y, _ = p.deck_pots[2]
+    cuts.append(_rail_slot(p, y - p.sidewalk + D, D - (x - p.church_length), t))
     body = body.fuse(*adds).cut(*cuts)
-    return Piece(body, [], [(D + 0.2 * Ly, D, "+y"), (D + 0.85 * Ly, D, "+y")], color=p.color_door)
+    # Concrete inside a rust edge, as on the Church St deck.
+    plan = Pos(D + (Ly - 1.0) / 2, (D + 1.0) / 2) * Rectangle(Ly - 1.0, D - 1.0)
+    plan += Pos(D, D) * Circle(D - 1.0)
+    z = t - p.zq(p.color_depth)
+    top = Pos(0, 0, z) * extrude(plan, p.zq(p.color_depth) + 1, dir=UP)
+    top -= box(-1, D + Ly + 1, D, 2 * D + 1, -1, t + 2)
+    return Piece(body, [], [(D + 0.2 * Ly, D, "+y"), (D + 0.85 * Ly, D, "+y")], color=p.color_door,
+                 paints=[(p.color_deck_top, top)])
 
 
 def _facets_local(p):
@@ -832,8 +943,14 @@ def overhang(p) -> Piece:
     for x in p.church_post_xs:
         hy = p.post_t / 2 + cl
         cuts.append(box(x - x0 - p.post_w / 2 - cl, x - x0 + p.post_w / 2 + cl, yl - hy, yl + hy, -EPS, t + EPS))
+    # Hanging baskets, one to a bay. Their tabs come up from below.
+    for x in p.basket_xs:
+        cuts.append(box(x - x0 - p.rail_tab_w / 2 - cl, x - x0 + p.rail_tab_w / 2 + cl,
+                        yl - p.furniture_t / 2 - cl, yl + p.furniture_t / 2 + cl, -EPS, t + EPS))
     body = body.fuse(*adds).cut(*cuts)
-    return Piece(body, [], [(0.25 * L, D, "+y"), (0.75 * L, D, "+y")], color=p.color_door)
+    top = box(1.0, L - 1.0, 1.0, D, t - p.zq(p.color_depth), t + 1)
+    return Piece(body, [], [(0.25 * L, D, "+y"), (0.75 * L, D, "+y")], color=p.color_door,
+                 paints=[(p.color_roof, top)])
 
 
 def _spandrel_cuts(half, h, top, t):
@@ -944,7 +1061,7 @@ def cornice(p) -> Piece:
     adds = [tab(x, D, 6.0, p.zq(p.deck_tab_pocket) - 0.2, t, p.lead_in, "+y")
             for x in (-0.2 * p.main_panel, 0.2 * p.main_panel)]
     body = body.fuse(*adds)
-    return Piece(body, [], [(0, D, "+y")], color=p.color_wall)
+    return Piece(body, [], [(0, D, "+y")], color=p.color_band)
 
 
 def hanging_sign(p) -> Piece:
@@ -1006,8 +1123,165 @@ def chair_back(p) -> Piece:
 
 
 # ---------------------------------------------------------------------------
+# Window backers: dark sheets behind the openings, in their hosts' local frames
+# ---------------------------------------------------------------------------
+def _backer(p, x0, x1, y0, y1, pegs, gate_xs, cuts=()) -> Piece:
+    """Sheet with pegs on its front (z = t, against the host's back). The peg
+    outline does the locating; their height only has to clear the pocket's floor."""
+    t, w = p.backer_t, p.backer_peg / 2
+    body = box(x0, x1, y0, y1, 0, t)
+    if cuts:
+        body = body.cut(*cuts)
+    h = p.zq(p.backer_peg_h)
+    body = body.fuse(*[box(x - w, x + w, y - w, y + w, t - EPS, t + h) for x, y, *_ in _peg_grid(pegs)])
+    return Piece(body, [], [(x, y0, "-y") for x in gate_xs], color=p.color_glass)
+
+
+def backer_church(p) -> Piece:
+    """Stands on the floor ring behind the Church St wall: every window and transom."""
+    x0, x1 = 13.0, 168.0
+    return _backer(p, x0, x1, 0.0, 76.0, _pegs_church(p), (x0 + 20, x1 - 20))
+
+
+def backer_main(p) -> Piece:
+    W = p.main_panel
+    return _backer(p, 21.0, W - 21.0, 50.0, 78.0, _pegs_main(p), (30.0, W - 30.0))
+
+
+def backer_store(p) -> Piece:
+    """An arch: both display windows and the clerestory, open around the entry."""
+    W, H = p.store_w, p.store_h
+    mid = W * p.entry_center_local
+    half = max(abs(d) for d in p.cheek_dy) + p.sheet_t / 2 + 0.15
+    notch = box(mid - half, mid + half, 0.0, p.store_door_top + 0.2, -EPS, p.backer_t + EPS)
+    return _backer(p, 1.0, W - 1.0, 2.0, H - 0.5, _pegs_store(p), (6.0, W - 6.0), cuts=(notch,))
+
+
+def backer_door(p) -> Piece:
+    W = p.door_panel_w
+    return _backer(p, W / 2 - 8.5, W / 2 + 8.5, 3.0, p.store_door_top + 0.5, _pegs_door(p), (W / 2,))
+
+
+def _behind(host):
+    """Pose for a sheet against the back of a panel, sharing the panel's local x, y."""
+    return lambda p: host(p) * Pos(0, 0, -p.backer_t)
+
+
+# ---------------------------------------------------------------------------
+# Greenery: cross-lapped silhouettes, one color split per sheet
+# ---------------------------------------------------------------------------
+def _foliage(lobes, t):
+    return [extrude(Pos(x, y) * Circle(r), t, dir=UP) for x, y, r in lobes]
+
+
+def _plant(p, half, pot_h, H, lobes, slot_from_top) -> tuple:
+    """(body, paints) of one sheet of a cross-lapped plant in a tapered pot."""
+    t, cl = p.prop_thickness, p.prop_clearance
+    w0, w1, rim = half * 0.72, half * 0.9, 0.8
+    pot = Polygon((-w0, 0), (w0, 0), (w1, pot_h - rim), (half, pot_h - rim), (half, pot_h),
+                  (-half, pot_h), (-half, pot_h - rim), (-w1, pot_h - rim), align=None)
+    solids = _foliage(lobes, t)
+    body = extrude(pot, t, dir=UP).fuse(*solids)
+    s = t / 2 + cl
+    if slot_from_top:
+        body -= box(-s, s, H / 2, H + half, -EPS, t + EPS)
+    else:
+        body -= box(-s, s, -EPS, H / 2, -EPS, t + EPS)
+    return body, [(p.color_planter, box(-2 * half, 2 * half, -5, pot_h, -1, t + 1))]
+
+
+def _lobes(half, pot_h, H, flip):
+    """Foliage from just inside the pot's rim up to H: a low wide mass and a crown,
+    lopsided so the two crossed sheets don't look the same."""
+    s = -1 if flip else 1
+    r0, r1, r2 = 0.48 * half, 0.42 * half, 0.34 * half
+    return ((0, H * 0.54, 0.62 * half), (0, H * 0.74, 0.45 * half),   # no pinholes between lobes
+            (s * 0.55 * half, pot_h + r0, r0), (-s * 0.5 * half, pot_h + 0.9 * r0, r1),
+            (s * 0.42 * half, H * 0.68, r1), (-s * 0.42 * half, H * 0.72, r1),
+            (s * 0.2 * half, H - r2, r2), (-s * 0.35 * half, H - 1.25 * r2, r2))
+
+
+def _plant_a(p, half, pot_h, H, tab_len, tab_w) -> Piece:
+    """Slot from the top, and the tab that plants it in its pocket."""
+    body, paints = _plant(p, half, pot_h, H, _lobes(half, pot_h, H, False), True)
+    body = body.fuse(tab(0, 0, tab_w, tab_len, p.prop_thickness, p.lead_in))
+    return Piece(body, [], [(0, -tab_len, "-y")], color=p.color_shrub, paints=paints)
+
+
+def _plant_b(p, half, pot_h, H) -> Piece:
+    """Slot from the bottom; stands on its two feet."""
+    body, paints = _plant(p, half, pot_h, H, _lobes(half, pot_h, H, True), False)
+    return Piece(body, [], [(-0.42 * half, 0, "-y")], color=p.color_shrub, paints=paints)
+
+
+def planter_a(p) -> Piece:
+    return _plant_a(p, p.planter_half, p.planter_pot_h, p.planter_h, p.prop_tab_len, p.prop_tab_width)
+
+
+def planter_b(p) -> Piece:
+    return _plant_b(p, p.planter_half, p.planter_pot_h, p.planter_h)
+
+
+def pot_a(p) -> Piece:
+    """On a deck: its tab goes through, into the same slot as a railing's."""
+    return _plant_a(p, p.pot_half, p.pot_pot_h, p.pot_h, p.deck_t - 0.2, p.rail_tab_w)
+
+
+def pot_b(p) -> Piece:
+    return _plant_b(p, p.pot_half, p.pot_pot_h, p.pot_h)
+
+
+def basket(p) -> Piece:
+    """Hangs from the overhang. Local y = 0 is the overhang's underside: an iron
+    hanger, a ball of foliage, and a terracotta bowl under it."""
+    t = p.furniture_t
+    top, bowl_top, bowl_bot, r = -3.0, -8.5, -12.0, 3.6
+    bowl = Polygon((-3.2, bowl_top), (3.2, bowl_top), (1.8, bowl_bot), (-1.8, bowl_bot), align=None)
+    body = extrude(bowl, t, dir=UP).fuse(*_foliage(((0, -6.4, r), (-1.9, -7.2, 2.2), (1.9, -7.2, 2.2)), t))
+    body = body.fuse(box(-0.4, 0.4, top - 1.0, EPS, 0, t),
+                     tab(0, 0, p.rail_tab_w, p.overhang_t - 0.1, t, 0.3, "+y"))
+    paints = [(p.color_post, box(-5, 5, top, 5, -1, t + 1)),
+              (p.color_planter, box(-5, 5, bowl_bot - 1, bowl_top, -1, t + 1))]
+    return Piece(body, [], [(0, p.overhang_t - 0.1, "+y")], color=p.color_shrub, paints=paints)
+
+
+# ---------------------------------------------------------------------------
 # Poses
 # ---------------------------------------------------------------------------
+def _pose_base_b(p):
+    return Location(BASE_B_PRINT.inverse())
+
+
+def _plant_pose(place, cross):
+    """place(p) -> (x, y, run of sheet A, z of the surface it stands on)."""
+    def pose(p):
+        x, y, run, z = place(p)
+        t = p.prop_thickness
+        if cross:
+            run = (run[1], run[0], 0)
+        return stand(p, x, y, z, run[:2], t)
+    return pose
+
+
+def _planter_place(i):
+    def place(p):
+        return (*p.planters[i], p.base_thickness)
+    return place
+
+
+def _pot_place(i):
+    def place(p):
+        return (*p.deck_pots[i], _deck_z(p) + p.deck_t)
+    return place
+
+
+def _basket_pose(i):
+    def pose(p):
+        return stand(p, p.basket_xs[i], p.post_line_y, p.base_thickness + p.eave_z, (1, 0), p.furniture_t)
+    return pose
+
+
+
 def _pose_church(p):
     return Location(Plane((0, p.sidewalk + p.wall_thickness, p.base_thickness), X, NEG_Y))
 
@@ -1157,7 +1431,7 @@ def _rail_main(p):
 
 _LIST = [
     ("base_a", base_a, lambda p: Location(Plane.XY)),
-    ("base_b", base_b, lambda p: Location(Plane.XY)),
+    ("base_b", base_b, _pose_base_b),
     ("wall_church", wall_church, _pose_church),
     ("wall_main", wall_main, _pose_main),
     ("wall_west", wall_west, _pose_west),
@@ -1184,6 +1458,46 @@ _LIST = [
     ("table_b", table_b, _pose_table_b),
     *[(f"chair{i}_side", chair_side, _chair_pose(i, "side")) for i in range(2)],
     *[(f"chair{i}_back", chair_back, _chair_pose(i, "back")) for i in range(2)],
+    ("backer_church", backer_church, _behind(_pose_church)),
+    ("backer_main", backer_main, _behind(_pose_main)),
+    ("backer_store", backer_store, _behind(_pose_store)),
+    ("backer_door", backer_door, _behind(_pose_door)),
+    *[(f"planter{i}_{s}", make, _plant_pose(_planter_place(i), s == "b"))
+      for i in range(4) for s, make in (("a", planter_a), ("b", planter_b))],
+    *[(f"pot{i}_{s}", make, _plant_pose(_pot_place(i), s == "b"))
+      for i in range(3) for s, make in (("a", pot_a), ("b", pot_b))],
+    *[(f"basket{i}", basket, _basket_pose(i)) for i in range(3)],
 ]
 
 REGISTRY = [Spec(i + 1, name, make, pose) for i, (name, make, pose) in enumerate(_LIST)]
+
+
+def _names(prefix, n):
+    return tuple(f"{prefix}{i}" for i in range(n))
+
+
+# Tool numbers stay put where they can, so going down this list only swaps the
+# tools that differ: none, then T1, none, then T1, T2 and T4. The walls are short
+# of four colors' worth of area, so the small iron parts fill out their plates.
+_GROUND = ("concrete", "stone", "iron", "rust")
+_WALLS = ("sage", "stone", "iron", "rust")
+PLATES = (
+    Plate("ground", _GROUND, ("base_a", "base_b", "door_panel"), sprue="concrete", label="iron"),
+    Plate("balcony", _GROUND,
+          ("storefront", "cheek_s", "cheek_n", "deck_church", "deck_main", "overhang", "sign", "cornice",
+           *_names("post_m", 3)),
+          sprue="concrete", label="iron"),
+    Plate("church", _WALLS,
+          ("wall_church", *_names("post_c", 4), *_names("rail_c", 3), "rail_return"),
+          sprue="stone", label="iron"),
+    Plate("main", _WALLS,
+          ("wall_main", "wall_west", "post_m3", *_names("upper_c", 4), *_names("rig_c", 4), *_names("rig_m", 4),
+           "table_top", "table_a", "table_b", "chair0_side", "chair0_back", "chair1_side", "chair1_back"),
+          sprue="stone", label="iron"),
+    Plate("green", ("smoke", "terra", "iron", "moss"),
+          ("backer_church", "backer_main", "backer_store", "backer_door",
+           *[f"planter{i}_{s}" for i in range(4) for s in "ab"],
+           *[f"pot{i}_{s}" for i in range(3) for s in "ab"], *_names("basket", 3),
+           *_names("rail_m", 3), *_names("facet", 3)),
+          sprue="smoke", label="moss"),
+)

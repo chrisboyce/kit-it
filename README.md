@@ -20,7 +20,7 @@ just                 # = just both coupon  -> everything into ./out
 | `just built` | interference check + `out/built_{iso,front,top}.{svg,png}` |
 | `just print` | sprue + color checks, `out/kit.3mf` (4-color), `out/kit.stl`, `out/kit_T*_*.stl`, `out/plate_{top,color}.png` |
 | `just both`  | both of the above + `out/both_iso.png` (model beside its plate) |
-| `just corner`| the Creative Corner kit, built + 4 plates, into `out/corner/` (~6 min) |
+| `just corner`| the Creative Corner kit, built + 5 plates, into `out/corner/` (~9 min) |
 | `just coupon`| `out/coupon.3mf`, `out/coupon.stl`, `out/coupon_{top,iso}.png` |
 | `just viewer`| browser OCP viewer on :3939 |
 | `just show`  | checks + send the kit to the viewer, no file output |
@@ -111,8 +111,10 @@ planter, the color split is in the outline, so every layer has both colors.
 That's no problem on a toolchanger.
 
 **Checks:** the color regions must tile the plate exactly (no overlap, no gap,
-which `color_partition` checks), and the plate may use at most `max_tools`
-colors.
+which `color_partition` checks), and everything on a plate has to be in a loaded
+tool. A kit can use more colors than the printer has tools by naming its plates
+(`sprue.Plate`: parts, the color in each tool, sprue and label colors); the
+Creative Corner does. Without named plates, the palette is T1..T4.
 
 **Slicing on the U1:** open `out/kit.3mf`. It loads as **one object with four
 parts** named `T1 brick`, `T2 trim`, `T3 concrete` and `T4 accent`. In the
@@ -240,23 +242,49 @@ Reference panos, for `streetviewpixels-pa.googleapis.com/v1/thumbnail?panoid=..&
   and slide in from the side under a skin, so that seam reads as a sidewalk joint.
 * **Features use the loose fit** (`prop_clearance`, plain friction, no barbs or
   ribs): storefront, door panel, entry cheeks, decks, overhang, posts, outriggers,
-  railings, cornice, sign, furniture. Their sheets are 1–2 mm.
+  railings, cornice, sign, furniture, plants. Their sheets are 1–2 mm. Window
+  backers have square pegs on their front, into blind pockets in the panel's back;
+  one peg locates the sheet and the others float (`_peg_grid`).
 
-**Colors:** T1 sage (walls, cornice), T2 stone (trim, sidewalk, bulkheads, sprue),
-T3 iron (posts, outriggers, rails, furniture), T4 rust (decks, overhang, doors,
-storefront frames, coping). Each plate is its own 3MF, set up as in "Slicing on the U1".
+**Colors:** eight filaments, at most four on a plate. Each plate is its own 3MF, set
+up as in "Slicing on the U1", and its part names give that plate's tool numbers.
 
-**Plates:** `kit_plate1`–`4`, all within the 210 mm usable bed, ~193 cm³ in total
-(about 240 g if it were solid; not sliced yet, so no time estimate).
+| filament | used for |
+|---|---|
+| sage | walls |
+| iron | posts, outriggers, rails, furniture; pilasters, piers, belt courses, cornice; bulkheads; overhang top; basket hangers |
+| stone | window frames, Main St panel, screen doors, hanging sign |
+| rust | doors, storefront frame, deck and overhang edges, coping |
+| concrete | sidewalk, deck tops |
+| smoke | window backers. Load a translucent filament instead if you'll light it from inside |
+| terra | planters, pots, baskets |
+| moss | foliage |
+
+| plate | T1 | T2 | T3 | T4 | parts |
+|---|---|---|---|---|---|
+| `kit_plate1_ground` | concrete | stone | iron | rust | base, shop door panel |
+| `kit_plate2_balcony` | concrete | stone | iron | rust | storefront, cheeks, decks, overhang, sign, cornice, 3 posts |
+| `kit_plate3_church` | **sage** | stone | iron | rust | Church St wall, 4 posts, Church St rails, return rail |
+| `kit_plate4_main` | sage | stone | iron | rust | Main St and west walls, post, upper posts, outriggers, furniture |
+| `kit_plate5_green` | **smoke** | **terra** | iron | **moss** | backers, plants, Main St rails, corner rails |
+
+Printing in this order, only the tools in bold need a new spool. Plate 1 doesn't
+use T2, so its 3MF has no T2 part. Base B prints a quarter turn round, as a long
+strip above base A.
+
+**Plates:** all within the 210 mm usable bed, ~218 cm³ in total
+(about 270 g if it were solid; not sliced yet, so no time estimate).
 
 **Assembly** (part numbers are on the sprue label pads):
 1. Slide base A's keys into base B on a flat surface.
-2. Push the west return (5) into the back of the Church St wall (3), then the
-   Church St wall's end tabs into the back of the Main St wall (4). Press that
+2. Press the backers into the backs of the Church St wall (52 on 3) and the Main St
+   wall (53 on 4). Push the west return (5) into the back of the Church St wall,
+   then the Church St wall's end tabs into the back of the Main St wall. Press that
    whole unit into base A.
 3. Entry: push both cheeks (8, 9) into the door panel (7), slide the storefront
-   (6) onto their front tabs, and lower it all into the base from behind, so the
-   storefront sits against the back of the Main St wall.
+   (6) onto their front tabs, and press the backers on behind (54 on 6, 55 on 7).
+   Lower it all into the base from behind, so the storefront sits against the back
+   of the Main St wall.
 4. Stand the lower posts (13–20) in the sidewalk. Drop an outrigger (25–32) onto
    each post's head, so the two slots cross, with its plain end at the wall.
 5. Church St deck (10): hook its back tabs into the wall with the front edge raised,
@@ -266,14 +294,18 @@ storefront frames, coping). Each plate is its own 3MF, set up as in "Slicing on 
    same way as the deck: back tabs first, then down over the post tops.
 7. Railings (33–42), cornice (43), sign (44, up through the deck from below),
    table (45–47: cross a and b, top on a's tab), chairs (48–51).
+8. Greenery. Each plant is a cross-lapped pair, with the tab on `a`: planters
+   (56–63) into the sidewalk, pots (64–69) through the decks, baskets (70–72) up
+   through the overhang from below.
 
 **Not checked:** this hasn't been printed, and step 5's swing-in is reasoned from
 the clearances, not simulated. If the decks won't swing in, shorten `deck_tab_pocket`.
-Rails, posts and chairs are at the limit of what prints well, at 0.7–1.0 mm.
+Rails, posts and chairs are at the limit of what prints well, at 0.7–1.0 mm. The
+backers' pegs are new and aren't on the coupon; if they don't hold, a drop of glue
+will do, since nothing bears on them.
 
-**Left out for now:** no roof or back wall (it's open behind, like the nook), and
-windows are open, so you can see through the building. A dark backer sheet behind
-them would help. Also the lamp post, street signs and brick planters, and any lettering.
+**Left out for now:** no roof or back wall (it's open behind, like the nook). Also
+the lamp post, street signs, and any lettering.
 
 ## What was verified (in this session)
 
@@ -370,5 +402,4 @@ drew the long facade triangles in the wrong order.
   the post).
 * The other Colfax facades (Creative Corner is the first, above).
 * Pre-assigned toolheads in the 3MF (needs a Snapmaker Orca project as a template).
-* 8-color kits split across two plates.
 * Layered/laminated facades.

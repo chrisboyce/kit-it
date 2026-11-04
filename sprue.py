@@ -5,7 +5,8 @@ left to right (or, with first_fit, each into the first row with room for it, whi
 packs tighter but makes wider plates). Every row has a rail below and above it, so a gate
 always runs straight in Y from a hidden part edge to the nearest rail. Each part
 gets a small label pad on the rail just to its left. A kit too big for one bed
-goes through paginate() first: whole rows are assigned to plates.
+goes through paginate() first: whole rows are assigned to plates. A kit with more
+colors than the printer has tools names its plates instead (Plate, assign()).
 
 This is used for both the kit (view.py) and the test coupon (coupon.py).
 """
@@ -24,6 +25,26 @@ class Item:
     name: str
     piece: object            # joints.Piece
     label: str | None = None
+
+
+@dataclass(frozen=True)
+class Plate:
+    """A hand-picked plate: which parts, and which filament is in which tool."""
+    name: str
+    tools: tuple             # color names; index + 1 = tool number
+    parts: tuple             # part names
+    sprue: str               # rails and gates
+    label: str               # embossed part numbers
+
+
+def assign(items, plates):
+    """[[Item]] per Plate. Every item has to be on exactly one plate."""
+    by_name = {it.name: it for it in items}
+    listed = [name for plate in plates for name in plate.parts]
+    wrong = sorted({n for n in listed if listed.count(n) > 1} | (set(listed) ^ set(by_name)))
+    if wrong:
+        raise SystemExit(f"plate assignment: not on exactly one plate: {', '.join(wrong)}")
+    return [[by_name[name] for name in plate.parts] for plate in plates]
 
 
 @dataclass
