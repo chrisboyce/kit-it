@@ -26,6 +26,12 @@ just                 # = just both coupon  -> everything into ./out
 | `just viewer`| browser OCP viewer on :3939 |
 | `just show`  | checks + send the kit to the viewer, no file output |
 
+**Showing a kit again is instant.** A passing build saves what the viewer needs in `out/<kit>/.cache/`,
+so while the source and parameters are unchanged, `view.py` skips the build and sends that
+(`viewcache.py`). It's safe but coarse: editing any `.py` file means a rebuild, even one the kit doesn't
+use. Failed builds aren't saved. A run that wants exports only reuses a build that wrote them, so
+`just corner` still rebuilds after `just show`. `--rebuild` forces a fresh build; `just clean` clears it all.
+
 **Viewer order matters:** run `just viewer`, open
 http://127.0.0.1:3939/viewer in a browser, *then* `just show` (or any
 `view.py` run). The standalone viewer forwards each model to the browser tab
@@ -55,6 +61,7 @@ identical everywhere. Python deps are pinned in `requirements.txt`.
 | file | role |
 |---|---|
 | `corner.py`, `market.py` | the kits: params, parts, poses, plates. New ones come from the `streetview-kit` skill |
+| `viewcache.py` | reuses a kit's last passing build while nothing has changed |
 | `vary.py` | seeded randomness for variety within one model (see "Variety") |
 | `params.py` | every dimension and fit value. `ft()`/`inch()` for scale sizes; printer values in mm; `zq()` snaps Z heights to whole layers |
 | `joints.py` | tab, socket (+ lead-in, crush ribs), barb tab, `Piece` |

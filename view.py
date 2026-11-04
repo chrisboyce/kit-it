@@ -10,6 +10,9 @@ also shown there, in color.
 
 Exit status is nonzero if the interference check (built) or the sprue
 verification (print) finds a problem.
+
+If nothing has changed since the last passing build, it isn't repeated: the saved result
+goes straight to the viewer (viewcache.py). --rebuild forces a fresh build.
 """
 
 import argparse
@@ -26,6 +29,7 @@ import corner
 import market
 import registry
 import render
+import viewcache
 from params import DEFAULT, with_overrides
 from sprue import Item, assign, layout, paginate, verify
 
@@ -135,6 +139,15 @@ def run_print(kit, p, out: Path, export=True, named=None):
     return solids, regions, failed
 
 
+def _send(shown, no_viewer):
+    if no_viewer or not render.viewer_available():
+        return
+    render.show([s for _, s, _ in shown], [n for n, _, _ in shown], [h for _, _, h in shown])
+    print(f"sent {len(shown)} objects to the OCP viewer on :{render.VIEWER_PORT}.\n"
+          f"  Still seeing the logo? The viewer only draws into a browser tab that was\n"
+          f"  already open: open {render.VIEWER_URL} first, then re-run (`just show`).")
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--mode", choices=["built", "print", "both"], default="built")
@@ -145,6 +158,7 @@ def main(argv=None):
     ap.add_argument("--no-viewer", action="store_true", help="don't send to an OCP viewer")
     ap.add_argument("--no-export", action="store_true",
                     help="skip SVG/PNG/3MF/STL output (fast path for the viewer)")
+    ap.add_argument("--rebuild", action="store_true", help="build and check even if nothing has changed")
     args = ap.parse_args(argv)
 
     defaults, specs, views, named = KITS[args.kit]
@@ -154,6 +168,15 @@ def main(argv=None):
     args.out.mkdir(parents=True, exist_ok=True)
     t0 = time.time()
     export = not args.no_export
+
+    key = viewcache.fingerprint(args.kit, args.mode, p)
+    if not args.rebuild:
+        shown = viewcache.load(args.out, args.mode, key, export)
+        if shown is not None:
+            print("Nothing has changed since the last passing build (--rebuild to build it again).")
+            _send(shown, args.no_viewer)
+            print(f"OK in {time.time() - t0:.1f}s")
+            return 0
 
     print("feature sizes:")
     for line in checks.feature_report(p) or ["all declared features >= min_feature"]:
@@ -185,11 +208,9 @@ def main(argv=None):
             f = render.projection(Compound([model, *placed]), args.out / "both_iso.svg", "iso", hidden=False)
             print(f"  wrote {f} (+ .png)")
 
-    if not args.no_viewer and render.viewer_available():
-        render.show([s for _, s, _ in shown], [n for n, _, _ in shown], [h for _, _, h in shown])
-        print(f"sent {len(shown)} objects to the OCP viewer on :{render.VIEWER_PORT}.\n"
-              f"  Still seeing the logo? The viewer only draws into a browser tab that was\n"
-              f"  already open: open {render.VIEWER_URL} first, then re-run (`just show`).")
+    if not failed:
+        viewcache.save(args.out, args.mode, key, shown, export)
+    _send(shown, args.no_viewer)
 
     print(f"{'FAILED' if failed else 'OK'} in {time.time() - t0:.1f}s")
     return 1 if failed else 0
