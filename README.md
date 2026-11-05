@@ -548,8 +548,8 @@ stay on real track. Nothing fixes the car to the base, so it lifts off.
 **Assembly** (part numbers are on the sprue label pads):
 1. Push the sides' (3, 4) end tabs into the backs of the ends (5, 6), then press the box into the floor (2).
 2. Drop the spine (7) in from above, into the floor.
-3. Trucks: cross a bolster with two frames (18 with 14 and 15; 19 with 16 and 17), then press its tab up
-   into the floor.
+3. Trucks: drop two frames into a bolster's slots from above (18 with 14 and 15; 19 with 16 and 17), then
+   press the bolster's tab up through the floor. The floor then traps the frames.
 4. Steps (20-23) up into the floor's corners, railings (24, 25) down into the platforms.
 5. Cupola: cross its ends (11, 12) with its sides (9, 10), press the tabs into the roof (8), then add its
    roof (13).
@@ -558,6 +558,8 @@ stay on real track. Nothing fixes the car to the base, so it lifts off.
 **First print** (this two-plate layout): nearly all the parts came off the sprues cleanly, and the
 split-tab box holds together. Known flaws: the roof has no joint to the walls, only two friction
 tabs on the spine, so it doesn't stay put, and the wheels don't stay attached. Both need redesigning.
+Since then the trucks have changed so the floor traps the frames, and the bolster's tab is wider and
+goes through the floor. That version isn't printed yet.
 
 **Not checked:** the lettering's smallest strokes are about
 0.6 mm. Railings and steps are 0.8-0.9 mm bars, and the cupola ends' thin legs are about 0.8 mm wide.

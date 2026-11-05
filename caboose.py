@@ -298,10 +298,11 @@ def floor(p) -> Piece:
     for sx in (-1, 1):
         for y in (-W * 0.36, W * 0.36):
             cuts.append(_sock(sx * _rail_x(p), y, p.sheet_t + 2 * cl, 2.0 + 2 * cl, tb - p.zq(2.4), tb, p))
-    # Trucks and steps, blind from underneath.
-    d = p.zq(2.4)
+    # Trucks: right through, for more grip. The walls hide the tabs' ends.
     for x in p.truck_xs:
-        cuts.append(_sock(x, 0, p.sheet_t + 2 * cl, 4.0 + 2 * cl, 0, d, p, mouth="bottom"))
+        cuts.append(_sock(x, 0, p.sheet_t + 2 * cl, _bolster_tab_w(p) + 2 * cl, 0, tb, p, mouth="bottom"))
+    # Steps, blind from underneath.
+    d = p.zq(2.4)
     for sx in (-1, 1):
         for sy in (-1, 1):
             cuts.append(_sock(sx * p.step_x, sy * _step_y(p), 4.0 + 2 * cl, p.sheet_t + 2 * cl, 0, d, p, mouth="bottom"))
@@ -415,34 +416,40 @@ def cupola_roof(p) -> Piece:
 # ---------------------------------------------------------------------------
 def truck_frame(p) -> Piece:
     """One side of a truck, with its two wheels. Local: x along the car, y up from the rail.
-    It's one sheet at the gauge, so the wheels' faces and the frame are the same thickness."""
+    It's one sheet at the gauge, so the wheels' faces and the frame are the same thickness.
+    Its slot opens downward and its top stops just under the floor, so once the bolster is in
+    the floor the frame is trapped between them and can't drop out."""
     t, r, a = p.sheet_t, p.wheel_r, p.wheelbase / 2
     cl = p.prop_clearance
     wheels = [Pos(x, r) * Circle(r) for x in (-a, a)]
     body = extrude(wheels[0] + wheels[1], t, dir=UP)
-    body = body.fuse(box(-a, a, 3.0, 7.6, 0, t), box(-4.0, 4.0, 3.0, p.floor_up - 0.4, 0, t))
+    body = body.fuse(box(-a, a, 3.0, 7.6, 0, t), box(-4.0, 4.0, 3.0, p.floor_up - cl, 0, t))
     s = t / 2 + cl
-    top = p.floor_up - 0.4
-    body -= box(-s, s, _lap(p), top + EPS, -EPS, t + EPS)
+    body -= box(-s, s, 3.0 - EPS, _lap(p), -EPS, t + EPS)
     discs = [(p.color_band, Pos(x, r, -1) * extrude(Circle(r), t + 2, dir=UP)) for x in (-a, a)]
     hubs = [(p.color_wall, Pos(x, r, -1) * extrude(Circle(1.4), t + 2, dir=UP)) for x in (-a, a)]
-    return Piece(body, [], [(0, 3.0, "-y")], color=p.color_wall, paints=[*discs, *hubs])
+    return Piece(body, [], [(-3.0, 3.0, "-y")], color=p.color_wall, paints=[*discs, *hubs])
 
 
 def _lap(p):
     return 6.0
 
 
+def _bolster_tab_w(p):
+    return 8.0
+
+
 def bolster(p) -> Piece:
-    """Crosses both frames, and its tab holds the truck in the floor. Local: x across the car."""
+    """The frames drop into its slots from above, and its tab holds the whole truck in the
+    floor. The tab stops just short of the floor's top, under the spine. Local: x across the car."""
     t, cl = p.sheet_t, p.prop_clearance
     half = p.frame_y + t / 2 + 1.2
     body = box(-half, half, 3.6, p.floor_up, 0, t)
     s = t / 2 + cl
     for sx in (-1, 1):
         x = sx * p.frame_y
-        body -= box(x - s, x + s, 3.6 - EPS, _lap(p), -EPS, t + EPS)
-    body = body.fuse(tab(0, p.floor_up, 4.0, 2.2, t, p.lead_in, "+y"))
+        body -= box(x - s, x + s, _lap(p), p.floor_up + EPS, -EPS, t + EPS)
+    body = body.fuse(tab(0, p.floor_up, _bolster_tab_w(p), p.floor_t - 0.1, t, p.lead_in, "+y"))
     return Piece(body, [], [(0, 3.6, "-y")], color=p.color_band)
 
 
