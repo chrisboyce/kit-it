@@ -501,7 +501,7 @@ flag, the planter's rocks and the bike racks. The north roof slope and the back 
 
 ## Colfax caboose kit
 
-The red wood-sided Southern Pacific caboose on display in Colfax, by N Main St. It's the first
+The red wood-sided caboose on display in Colfax, by N Main St. It's the first
 object rather than a building, made with the `streetview-kit` skill. `just caboose` builds it, in
 about 5 minutes: 25 parts, 2 plates, 4 filaments and no spool change. The joints are the usual two
 tiers, so printing it needs the coupon's **HS** and **XL** rows checked first.
@@ -575,8 +575,8 @@ landmark would be worse than none. Once someone reads it off the car, set `road_
 prints flat. The roof seams, end ladder rungs and platform deck color are assumptions. The emblem under
 the name is a simple block pattern, not the real logo.
 
-**Name and marks:** "Southern Pacific" and its logos may be trademarks of the railroad's successor.
-Check before selling this or giving it out widely. The name is a single paint volume, so it's easy to change.
+**Name and marks:** the real car's railroad name and logos are left off because they may be trademarks.
+The sides read "Colfax, CA" instead. The name is a single paint volume, so it's easy to change.
 
 **Left out:** the plaza's iron fence, benches and flagpoles; brake wheel, chimney and couplers.
 

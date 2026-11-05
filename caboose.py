@@ -1,4 +1,4 @@
-"""The Colfax caboose: the red wood-sided Southern Pacific caboose on display in town.
+"""The Colfax caboose: the red wood-sided caboose on display in town.
 
 An object rather than a building, so it's built up from its own floor instead of a
 sidewalk: a box of split-tab panels (two sides and two ends on a floor), and loose-fit
@@ -14,6 +14,7 @@ with the car centered on the origin and the display base's underside at z=0.
 
 import os
 from dataclasses import dataclass
+from itertools import groupby
 
 from build123d import Align, Circle, Location, Pos, Text, extrude
 
@@ -156,15 +157,19 @@ _T = DEFAULT.sheet_t
 # Lettering
 # ---------------------------------------------------------------------------
 def _small_caps(p, text, x_mid, y, big, small, z, t):
-    """Words with a big first letter, as on the car: `big` and `small` are font sizes.
+    """Capitals print at `big` and lowercase as capitals at `small` (both font sizes).
     Returns the paint volumes, and the width they take up."""
     gap, space = 0.25, 1.9
     pieces, x = [], 0.0
     for word in text.split():
-        for chunk, size in ((word[0], big), (word[1:], small)):
-            shape = Text(chunk, size, font_path=FONT, align=(Align.MIN, Align.MIN))
+        for upper, run in groupby(word, str.isupper):
+            chunk, size = "".join(run).upper(), big if upper else small
+            align = (Align.MIN, Align.NONE)
+            shape = Text(chunk, size, font_path=FONT, align=align)
             bb = shape.bounding_box()
-            pieces.append(Pos(x - bb.min.X, y - bb.min.Y) * shape)
+            # The letters sit on y, and a comma's tail hangs below them.
+            bottom = Text(chunk.rstrip(","), size, font_path=FONT, align=align).bounding_box().min.Y
+            pieces.append(Pos(x - bb.min.X, y - bottom) * shape)
             x += bb.size.X + gap
         x += space
     width = x - space - gap
@@ -172,7 +177,7 @@ def _small_caps(p, text, x_mid, y, big, small, z, t):
 
 
 def side_lettering(p, L, z, t):
-    return _small_caps(p, "SOUTHERN PACIFIC", L * 0.63, p.body_h * 0.79, 4.3, 3.3, z, t)
+    return _small_caps(p, "Colfax, CA", L * 0.63, p.body_h * 0.79, 4.3, 3.3, z, t)
 
 
 # ---------------------------------------------------------------------------
