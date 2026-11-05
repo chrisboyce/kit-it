@@ -1,12 +1,62 @@
-# PrintableColfax — HO storefront kit PoC
+# PrintableColfax: HO snap-together kits from Street View
 
-A proof of concept for designing 3D-printable HO-scale (1:87.1) "nook"
-storefronts as **snap-together kits printed flat on a sprue**, in Python with
-[build123d](https://github.com/gumyr/build123d). One generic storefront, one
-real Colfax building ([Creative Corner](#creative-corner-kit)), plus a snap-fit
-test coupon.
+3D-printable HO-scale (1:87.1) models of real buildings and objects, designed as
+**snap-together kits printed flat on a sprue** in Python with
+[build123d](https://github.com/gumyr/build123d). Each kit is checked before it's
+exported: parts don't collide, every plate fits the bed and the toolheads, and
+nothing overhangs. Plates come out as multi-color 3MFs, ready to slice.
 
-![built](out/built_color_iso.png)
+So far there are three kits of landmarks in Colfax, California:
+[Creative Corner](#creative-corner-kit), the [Colfax Market](#colfax-market-kit)
+and the [caboose](#colfax-caboose-kit). There's also a generic storefront and a
+snap-fit test coupon for tuning the fit to your printer.
+
+Run `just` to generate the renders this README refers to, into `out/`.
+
+## Make your own kit
+
+The workflow from a photo to a kit is written down as a
+[Claude Code](https://claude.com/claude-code) skill:
+[`.claude/skills/streetview-kit/`](.claude/skills/streetview-kit/SKILL.md). Open
+this repo in Claude Code, paste a Google Maps / Street View link, and ask for a
+kit. The skill gathers reference views, writes a design brief, models the kit
+in passes, and won't call it done until every check passes.
+
+You can follow it by hand too. What to read:
+
+* [`SKILL.md`](.claude/skills/streetview-kit/SKILL.md): the steps, from views to brief to model to plates
+* [`references/kit-design.md`](.claude/skills/streetview-kit/references/kit-design.md):
+  the design rules that real prints taught (joints, bed fitting, color, mistakes already made)
+* `market.py` (small building), `corner.py` (showcase building), `caboose.py` (an object)
+  are the worked examples. New kits subclass `CornerParams` and reuse its helpers.
+
+Before printing any kit, **print the coupon and tune the fits** (see
+[Tuning from prints](#tuning-from-prints)), because your printer won't match this one.
+
+### Adapting to your printer
+
+Everything was designed for a Snapmaker U1: four toolheads, 0.4 mm nozzle, PLA at
+0.2 mm layers, no supports. The printer's limits are all in `params.py`:
+
+| field | what it is |
+|---|---|
+| `bed_x`, `bed_y`, `bed_margin` | printable area. Parts and plates have to fit inside it |
+| `max_tools` | filaments per plate. Fewer tools means changing a kit's `palette` and plates to match (not tried) |
+| `nozzle`, `print_layer_height`, `min_feature` | what's thin enough to print |
+| `max_bridge` | the longest span with nothing under it |
+| `clearance`, `rib_height`, `float_clearance`, `prop_clearance`, `split_clearance` | the fits. Set these from the coupon |
+
+The 3MF export is written as a Bambu Studio-style project, so it opens in Orca,
+Bambu Studio and their forks with each part already on its own filament (see
+"Slicing on the U1"). Only Snapmaker Orca has been tested.
+
+### Reference images and names
+
+`streetview.py` fetches images from undocumented Google Maps endpoints. They aren't a
+licensed source, and they can stop working. The skill keeps images out of the repo
+and fetches only what a design needs, so keep it that way. Real business names and
+railroad marks on a kit may be someone's trademark. Check before you sell or widely
+distribute a kit that carries them.
 
 ## Run it
 
@@ -58,6 +108,13 @@ found by running `ldd` over every `.so` in the wheels:
 `LD_LIBRARY_PATH` (no system-wide nix-ld needed), and also provides `just`,
 `rsvg-convert` (SVG → PNG) and a pinned DejaVu font so embossed labels come out
 identical everywhere. Python deps are pinned in `requirements.txt`.
+
+**Without Nix** (untested): on an ordinary Linux or macOS machine the wheels find
+their libraries on their own. Use Python 3.12, `python -m venv .venv`,
+`source .venv/bin/activate` and `pip install -r requirements.txt`. Then install
+`just` and `rsvg-convert` (librsvg), and point `COLFAX_FONT` at a copy of
+`DejaVuSans-Bold.ttf`. In that shell, `just` runs plain `python` rather than
+wrapping itself in `nix develop`, as long as you set `IN_NIX_SHELL=1`.
 
 ## Layout
 
@@ -498,7 +555,11 @@ stay on real track. Nothing fixes the car to the base, so it lifts off.
    roof (13).
 6. Lower the roof onto the spine's tabs, and set the car on the base (1).
 
-**Not checked:** nothing here has been printed or sliced. The lettering's smallest strokes are about
+**First print** (this two-plate layout): nearly all the parts came off the sprues cleanly, and the
+split-tab box holds together. Known flaws: the roof has no joint to the walls, only two friction
+tabs on the spine, so it doesn't stay put, and the wheels don't stay attached. Both need redesigning.
+
+**Not checked:** the lettering's smallest strokes are about
 0.6 mm. Railings and steps are 0.8-0.9 mm bars, and the cupola ends' thin legs are about 0.8 mm wide.
 
 **Read from photos, so uncertain:** the east side's windows were only seen at an angle, past the fence.
@@ -517,7 +578,7 @@ Check before selling this or giving it out widely. The name is a single paint vo
 
 **Left out:** the plaza's iron fence, benches and flagpoles; brake wheel, chimney and couplers.
 
-## What was verified (in this session)
+## What was verified (the generic storefront)
 
 * **Clean build:** `just` builds everything with exit 0. Check A finds 0
   collisions over 15 pairs. Check B shows all 16 crush ribs overlapping
@@ -612,3 +673,8 @@ drew the long facade triangles in the wrong order.
   the post).
 * The other Colfax landmarks (Creative Corner, the Market and the caboose so far, above).
 * Layered/laminated facades.
+
+## License
+
+MIT, see [LICENSE](LICENSE). That covers the code and the kit designs. It grants no rights
+to the real buildings' names or to any trademarks a kit depicts.

@@ -110,7 +110,8 @@ Open the final renders and each plate image yourself: passing checks doesn't mea
 
 Add a README section like "Creative Corner kit": sizes and their source, reference panorama ids,
 joints, filament and plate tables, assembly steps in part order, "not checked", "left out". Commit
-with `jj`, on a new change, not moving `main`. This project uses jj rather than git.
+on a new change or branch, not on `main`. If the checkout has a `.jj` directory, use only `jj`;
+otherwise use git.
 
 ## Reporting back
 

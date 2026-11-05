@@ -7,6 +7,8 @@ These come from real prints and from building the Creative Corner. If print resu
 
 Snapmaker U1: four toolheads, 220 mm bed (210 usable), PLA, 0.2 mm layers, 0.4 mm nozzle. HO is
 1:87.1. Use `ft()` and `inch()` for scale sizes, and plain mm for anything the printer limits.
+On a different printer, its limits are in `params.py`. The fit values are only right after printing
+the coupon on that printer. The numbers in this file are the U1's, so scale them to match.
 
 - **Precision belongs in the XY outline** of a part, accurate to about a nozzle width. Z is
   quantized to layers, so send any height through `zq()` and never rely on one for a fit.
