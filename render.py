@@ -108,7 +108,7 @@ _3MF_TYPES = ('<?xml version="1.0" encoding="UTF-8"?>\n'
               '</Types>\n')
 
 
-def export_color_3mf(regions, path: Path, filaments, bed=(220.0, 220.0), object_name="kit"):
+def export_color_3mf(regions, path: Path, filaments, offset=None, object_name="kit"):
     """One object made of one part per filament, as a slicer project, so it opens
     with each part already on its own filament (see "Slicing on the U1" in the README).
 
@@ -116,7 +116,8 @@ def export_color_3mf(regions, path: Path, filaments, bed=(220.0, 220.0), object_
     coordinate frame, so they stay registered, and each is named "T<n> <color>".
     filaments: hex for T1, T2, ..., including tools with no part on this plate, so
     a tool number means the same filament in every part name and in the slicer.
-    bed: (x, y). Projects keep positions, so the plate is centered on it.
+    offset: (x, y) to move the sheet to its place on the bed, since projects keep
+    positions (Sprue.bed_offset).
     """
     parts, lo, hi = [], [float("inf")] * 3, [float("-inf")] * 3
     for i, (name, tool, _, solid) in enumerate(regions, 1):
@@ -142,7 +143,7 @@ def export_color_3mf(regions, path: Path, filaments, bed=(220.0, 220.0), object_
     comps = "\n".join(f'    <component p:path="/3D/Objects/object_1.model" objectid="{i}" '
                       f'p:UUID="{uuid.uuid4()}" transform="1 0 0 0 1 0 0 0 1 0 0 0"/>'
                       for i, *_ in parts)
-    dx, dy = (bed[a] / 2 - (lo[a] + hi[a]) / 2 for a in (0, 1))
+    dx, dy = offset
     title = escape(object_name)
     root = (f'<?xml version="1.0" encoding="UTF-8"?>\n<model {_3MF_NS}>\n'
             f' <metadata name="Application">{PROJECT_APP}</metadata>\n'

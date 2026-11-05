@@ -51,7 +51,6 @@ class CabooseParams(CornerParams):
     color_sprue: str = "ballast"
     color_label: str = "coal"
     color_post: str = "coal"
-    part_spacing: float = 6.0
 
     # --- the car ------------------------------------------------------------
     body_len: float = ft(33)

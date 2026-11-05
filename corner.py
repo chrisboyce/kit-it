@@ -69,10 +69,6 @@ class CornerParams(Params):
     # Chosen for a good mix: some plants in bloom, a range of heights and pots.
     variation_seed: int = 30
 
-    # --- sprue: a bit tighter than the nook, there's a lot to fit -------------
-    part_spacing: float = 7.0
-    first_fit: bool = True
-
     # --- massing (scale) -----------------------------------------------------
     church_length: float = ft(52)      # west end to the Main St wall's front face
     main_width: float = ft(27)

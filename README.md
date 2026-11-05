@@ -641,7 +641,7 @@ rows, but it doesn't nest parts inside others' bounding boxes or holes.
 **Relief detail vs nozzle size.**
 * Frames and transom bars are 0.8 mm (two extrusion widths).
 * Raised relief is 0.4–0.8 mm (2–4 layers).
-* Label text is 3 mm DejaVu Bold, with strokes of about 0.5 mm.
+* Label text is 3.6 mm DejaVu Bold, with strokes of about 0.6 mm.
 * The coupon's 2.2 mm slot labels are marginal.
 * The `min_feature` check covers the feature sizes declared in `params.py`,
   not arbitrary geometry. A general thin-wall analysis of B-rep solids is a

@@ -38,7 +38,7 @@ import registry
 import render
 import viewcache
 from params import DEFAULT, with_overrides
-from sprue import Item, assign, layout, paginate, verify
+from sprue import Item, assign, could_share, layout, paginate, verify
 
 # name: (default params, part list, assembled views to draw, plates or None to paginate)
 KITS = {
@@ -117,7 +117,7 @@ def run_plate(items, p, out: Path, stem: str, export=True, tools=None):
     regions = [(c, t, p.hex(c), by_color[c]) for t, c in tools]
     if export:
         render.export_color_3mf(regions, out / f"{stem}.3mf", [p.hex(c) for c in loaded],
-                                (p.bed_x, p.bed_y), object_name=stem)
+                                s.bed_offset(p), object_name=stem)
         render.export_mesh(plate, out / stem, formats=("stl",))
         stls = render.export_color_stls(regions, out / stem)
         print(f"  wrote {out / (stem + '.3mf')} ({len(regions)} colors), {out / (stem + '.stl')}, "
@@ -136,6 +136,9 @@ def run_print(kit, p, out: Path, export=True, named=None):
     Returns ([plate solids], [(name, solid, hex) per plate], failed)."""
     items = [Item(spec.name, piece, str(spec.num)) for spec, piece in kit]
     plates = assign(items, named) if named else paginate(items, p)
+    if named:
+        for a, b in could_share(named, items, p):
+            print(f" note: plates {a} and {b} could be one sheet")
     solids, regions, failed = [], [], False
     for n, group in enumerate(plates, 1):
         spec = named[n - 1] if named else None

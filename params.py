@@ -33,9 +33,13 @@ class Params:
     nozzle: float = 0.4
     print_layer_height: float = 0.2
     min_feature: float = 0.6         # thinnest XY feature we trust to print
-    bed_x: float = 220.0
-    bed_y: float = 220.0
+    bed_x: float = 270.0             # Snapmaker U1, from Snapmaker Orca's own profile
+    bed_y: float = 270.0
     bed_margin: float = 5.0
+    # Left free at the bed's back-left corner, from its edges. The U1's prime tower
+    # is 30 mm wide with a 5 mm brim, and its ribs reach 8 mm further out.
+    tower_x: float = 60.0
+    tower_y: float = 60.0
 
     # Model variety (vary.py): fixed for a given seed, so every build is the same.
     variation_seed: int = 1
@@ -117,13 +121,17 @@ class Params:
     # --- sprue -----------------------------------------------------------------
     rail_width: float = 2.0
     rail_height: float = 1.6
-    gate_width: float = 1.0
+    gate_width: float = 1.2
     gate_height: float = 1.0
-    gate_neck: float = 0.6           # snap point where the gate meets the part
+    gate_neck: float = 0.8           # snap point where the gate meets the part: two nozzle widths
     gate_gap: float = 3.0            # rail-to-part distance
-    part_spacing: float = 9.0        # between parts in a row (room for a label pad)
-    first_fit: bool = False          # small parts go back into earlier rows (for big kits)
-    label_size: float = 3.0
+    gate_max: float = 10.0           # longest gate, rail to part
+    gate_pitch: float = 35.0         # a part gets about one gate per this much of its outline...
+    gate_most: int = 12              # ...up to this many
+    part_spacing: float = 4.0        # between parts in a row (room for cutters)
+    stile_over: float = 15.0         # rows taller than this get a rail between their parts
+    pack_tries: int = 400            # layouts sprue.pack tries per sheet
+    label_size: float = 3.6
     label_raise: float = 0.4
 
     # --- color ------------------------------------------------------------------
