@@ -74,6 +74,7 @@ just                 # = just both coupon  -> everything into ./out
 | `just market`| the Colfax Market kit, built + 3 plates, into `out/market/` (~3 min) |
 | `just caboose`| the Colfax caboose kit, built + 2 plates, into `out/caboose/` (~5 min) |
 | `just coupon`| `out/coupon.3mf`, `out/coupon.stl`, `out/coupon_{top,iso}.png` |
+| `just witness caboose` | that kit's go/no-go witness coupons, one per plate: `out/caboose/witness*.3mf`, plus a `.txt` naming each numbered joint |
 | `just viewer`| browser OCP viewer on :3939 |
 | `just show`  | checks + send the kit to the viewer, no file output |
 | `just showcase` | every kit together in the viewer, one row each: assembled model, then its plates |
@@ -132,6 +133,7 @@ wrapping itself in `nix develop`, as long as you set `IN_NIX_SHELL=1`.
 | `view.py` | `--mode built\|print\|both` entry point |
 | `corner.py` | the Creative Corner kit: its params, parts, poses and part list in one file |
 | `coupon.py` | the snap-fit test coupon |
+| `witness.py` | go/no-go witness coupons: each plate's joints, cropped from the real parts |
 
 Poses are written as `Plane(origin, x_dir, z_dir)` ("the part's local x goes
 along x_dir, the face that was on the bed faces z_dir"), which reads much better
@@ -305,6 +307,28 @@ clearance with the D/SP rows (smallest slot that slides with slight friction),
 your favourite squeeze with the R row, then set
 `rib_height = clearance + squeeze`. Kit sockets are deeper than the coupon
 strips (3.6 vs 3 mm), so the kit feels a little tighter; if torn, pick the looser.
+
+### Checking a fit you've already chosen
+
+The coupon above is for choosing fits. A **witness coupon** is for checking that they
+still work, without spending a whole kit on it: after a new spool, a nozzle change, a
+slicer update, or a long gap between prints.
+
+```sh
+just witness caboose     # out/caboose/witness.3mf, one sheet per plate
+```
+
+Print a plate's witness in that plate's filaments and settings, then snap each numbered
+pair together. Each should go in by hand and hold. `witness.txt` says which real joint each
+number is. If a pair is too tight or too loose, the same joint on the real parts will be.
+
+Its joints aren't listed anywhere. `witness.py` finds them in the assembled model and crops
+both halves out of the real parts, so a change to a kit's joints changes its witness too.
+Identical joints print once, and a joint between two plates appears on both plates' sheets.
+
+It only tests one joint at a time. A warped panel, or pegs along a long wall that have
+drifted apart, will still only show up on the real part. Each half also has less material
+around its socket than the real part, so a socket may flex a little more than it would there.
 
 ## Creative Corner kit
 

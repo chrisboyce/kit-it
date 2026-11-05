@@ -34,6 +34,10 @@ caboose *ARGS:
 coupon *ARGS:
     {{py}} coupon.py {{ARGS}}
 
+# a kit's go/no-go witness coupons, one per plate -> out/<kit>/witness*.3mf
+witness KIT="nook" *ARGS:
+    {{py}} witness.py --kit {{KIT}} {{ARGS}}
+
 # just check + send the kit to the open viewer (no file output, faster)
 show *ARGS:
     {{py}} view.py --mode both --no-export {{ARGS}}
