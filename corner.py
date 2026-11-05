@@ -1720,28 +1720,25 @@ def _names(prefix, n):
     return tuple(f"{prefix}{i}" for i in range(n))
 
 
-# Tool numbers stay put where they can, so going down this list only swaps the
-# tools that differ: none, then T1, none, then T1, T2 and T4. The walls are short
-# of four colors' worth of area, so the small iron parts fill out their plates.
+# Eight colors take at least three sheets, so that's what this aims for. Tool numbers stay
+# put where they can: going down this list swaps T1, then T1, T2 and T4. All the plain iron
+# goes on the last sheet, since it has the room and iron is loaded on every sheet.
 _GROUND = ("concrete", "stone", "iron", "rust")
 _WALLS = ("sage", "stone", "iron", "rust")
 PLATES = (
-    Plate("ground", _GROUND, ("base_a", "base_b", "door_panel"), sprue="concrete", label="iron"),
-    Plate("balcony", _GROUND,
-          ("storefront", "cheek_s", "cheek_n", "deck_church", "deck_main", "overhang", "sign", "cornice",
-           *_names("post_m", 3)),
+    Plate("ground", _GROUND,
+          ("base_a", "base_b", "door_panel", "storefront", "cheek_s", "cheek_n", "deck_church", "deck_main",
+           "overhang", "sign", "cornice"),
           sprue="concrete", label="iron"),
-    Plate("church", _WALLS,
-          ("wall_church", *_names("post_c", 4), *_names("rail_c", 3), "rail_return"),
-          sprue="stone", label="iron"),
-    Plate("main", _WALLS,
-          ("wall_main", "wall_west", "post_m3", *_names("upper_c", 4), *_names("rig_c", 4), *_names("rig_m", 4),
+    Plate("walls", _WALLS,
+          ("wall_church", "wall_main", "wall_west", *_names("post_c", 4), *_names("post_m", 4), *_names("upper_c", 4),
            "table_top", "table_a", "table_b", "chair0_side", "chair0_back", "chair1_side", "chair1_back"),
           sprue="stone", label="iron"),
     Plate("green", ("smoke", "terra", "iron", "moss"),
           ("backer_church", "backer_main", "backer_store", "backer_door",
            *[f"planter{i}_{s}" for i in range(4) for s in "ab"],
            *[f"pot{i}_{s}" for i in range(3) for s in "ab"], *_names("basket", 3),
-           *_names("rail_m", 3), *_names("facet", 3)),
+           *_names("rail_m", 3), *_names("facet", 3), *_names("rail_c", 3), "rail_return",
+           *_names("rig_c", 4), *_names("rig_m", 4)),
           sprue="smoke", label="moss"),
 )

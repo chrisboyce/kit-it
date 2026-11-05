@@ -563,11 +563,11 @@ _LIST = [
 REGISTRY = [Spec(i + 1, name, make, pose) for i, (name, make, pose) in enumerate(_LIST)]
 
 _MAIN = ("brick", "cream", "coal", "tin")
-# Printed in this order, only plate 3 needs a spool change: moss for cream.
+# Five colors take two sheets. The second only needs a spool change: moss for cream.
 PLATES = (
-    Plate("ground", _MAIN, ("base", "post_s0", "post_s1", "post_s2", "post_s3", "post_f0", "post_f1"),
+    Plate("main", _MAIN, ("base", "post_s0", "post_s1", "post_s2", "post_s3", "post_f0", "post_f1",
+                          "wall_front", "wall_side", "rafter_rear"),
           sprue="tin", label="coal"),
-    Plate("walls", _MAIN, ("wall_front", "wall_side", "rafter_rear"), sprue="tin", label="coal"),
     Plate("roof", ("brick", "moss", "coal", "tin"), ("roof", "awning", "backer", "rafter_mid", "tree_a", "tree_b"),
           sprue="tin", label="coal"),
 )

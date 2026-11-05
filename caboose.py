@@ -574,12 +574,6 @@ _LIST = [
 REGISTRY = [Spec(i + 1, name, make, pose) for i, (name, make, pose) in enumerate(_LIST)]
 
 _TOOLS = ("red", "cream", "coal", "ballast")
-# Both plates load the same four, so there's no spool change.
 PLATES = (
-    Plate("frame", _TOOLS,
-          ("display_base", "floor", "roof", "bolster_n", "bolster_s", "step_nw", "step_ne", "step_sw", "step_se",
-           "frame_nw", "frame_ne", "frame_sw", "frame_se"), sprue="ballast", label="coal"),
-    Plate("body", _TOOLS,
-          ("side_west", "side_east", "end_south", "end_north", "spine", "cup_side_w", "cup_side_e", "cup_end_s",
-           "cup_end_n", "cup_roof", "rail_s", "rail_n"), sprue="ballast", label="coal"),
+    Plate("all", _TOOLS, tuple(name for name, *_ in _LIST), sprue="ballast", label="coal"),
 )
