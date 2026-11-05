@@ -63,7 +63,7 @@ class CabooseParams(CornerParams):
     roof_over_end: float = ft(2.2)
     roof_over_side: float = 1.6
     cupola_len: float = ft(9.7)
-    cupola_w: float = ft(7)
+    cupola_w: float = ft(6.7)           # just inside the side walls: its tabs pass the roof beside them
     cupola_h: float = ft(3)
     cupola_at: float = 0.7              # along the body, from the north end
     cup_over: float = 1.5               # how far the cupola's ends pass its sides
@@ -356,6 +356,9 @@ def spine(p) -> Piece:
 # ---------------------------------------------------------------------------
 # The cupola: cross-lapped sheets
 # ---------------------------------------------------------------------------
+_CUP_TAB_PAST = 0.4     # how far the cupola's tabs stick out past the far side of a roof
+
+
 def _cup_tab_xs(p):
     return (-p.cupola_len * 0.27, p.cupola_len * 0.27)
 
@@ -373,8 +376,9 @@ def cupola_side(p) -> Piece:
     for x in (-L * 0.28, 0, L * 0.28):
         f.pocket(x - 2.4, x + 2.4, 2.2, H - 2.2, 0.4, color=p.color_band)
     body = f.finish(body)
-    adds = [tab(dx, 0, 4.0, p.roof_t - 0.1, t, 0.3) for dx in _cup_tab_xs(p)]
-    adds += [tab(dx, H, 3.0, _cup_roof_t(p) - 0.1, t, 0.3, "+y") for dx in _cup_tab_xs(p)]
+    # Long enough to pass through the roofs, so the chamfered tips don't take up the hole's grip.
+    adds = [tab(dx, 0, 4.0, p.roof_t + _CUP_TAB_PAST, t, 0.3) for dx in _cup_tab_xs(p)]
+    adds += [tab(dx, H, 3.0, _cup_roof_t(p) + _CUP_TAB_PAST, t, 0.3, "+y") for dx in _cup_tab_xs(p)]
     body = body.fuse(*adds)
     s = t / 2 + cl
     for sx in (-1, 1):
